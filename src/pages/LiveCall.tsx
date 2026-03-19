@@ -36,13 +36,14 @@ export default function LiveCall() {
       if (!res.ok) {
         let errText = res.statusText
         try {
-          const errData = await res.json()
-          errText = errData.error || errData.detail || errText
+          const cloned = res.clone()
+          const errData = await cloned.json()
+          errText = errData.error || (errData.detail ? JSON.stringify(errData.detail) : errText)
         } catch (_) {
           const rawText = await res.text()
-          errText = rawText.substring(0, 100)
+          errText = rawText.substring(0, 60).replace(/<[^>]*>?/gm, '') + "..."
         }
-        setSuggestion(`Say: HTTP ${res.status} Error: ${errText}`)
+        setSuggestion(`Say: Vercel HTTP ${res.status} Error: ${errText}`)
         return
       }
 
