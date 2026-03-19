@@ -23,17 +23,21 @@ app.add_middleware(
 
 @app.post("/api/start-call")
 async def start_call(req: StartCallRequest):
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase not configured")
-    
-    res = supabase.table("calls").insert({
-        "customer_name": req.customer_name,
-        "status": "active"
-    }).execute()
-    
-    if res.data:
-        return {"call_id": res.data[0]["id"]}
-    raise HTTPException(status_code=500, detail="Failed to create call")
+    try:
+        if not supabase:
+            return {"error": "Supabase not configured or invalid credentials."}
+        
+        res = supabase.table("calls").insert({
+            "customer_name": req.customer_name,
+            "status": "active"
+        }).execute()
+        
+        if res.data:
+            return {"call_id": res.data[0]["id"]}
+        return {"error": "Failed to create call - no row data returned"}
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 @app.post("/api/add-transcript")
 async def add_transcript(req: TranscriptRequest):
