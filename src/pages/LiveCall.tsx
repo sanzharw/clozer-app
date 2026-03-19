@@ -32,14 +32,33 @@ export default function LiveCall() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ call_id: id, transcript: text })
       })
-      if (res.ok) {
-        const data = await res.json()
-        if (suggestion) {
-          setPreviousSuggestions(prev => [suggestion, ...prev].slice(0, 3))
+
+      if (!res.ok) {
+        let errText = res.statusText
+        try {
+          const errData = await res.json()
+          errText = errData.error || errData.detail || errText
+        } catch (_) {
+          const rawText = await res.text()
+          errText = rawText.substring(0, 100)
         }
-        setSuggestion(data.suggestion)
+        setSuggestion(`Say: HTTP ${res.status} Error: ${errText}`)
+        return
       }
-    } catch (err) {
+
+      const data = await res.json()
+      
+      if (data.error) {
+        setSuggestion(`Say: Backend Error: ${data.error}`)
+        return
+      }
+
+      if (suggestion) {
+        setPreviousSuggestions(prev => [suggestion, ...prev].slice(0, 3))
+      }
+      setSuggestion(data.suggestion)
+    } catch (err: any) {
+      setSuggestion(`Say: Network Error: ${err.message}`)
       console.error(err)
     } finally {
       setIsAnalyzing(false)
