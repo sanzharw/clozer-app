@@ -6,9 +6,8 @@ export function useAudioCapture() {
 
   const startCapture = useCallback(async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getDisplayMedia({
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: false,
       })
       
       setStream(mediaStream)

@@ -40,9 +40,14 @@ export function useDeepgram(stream: MediaStream | null) {
           console.log("Deepgram connected")
 
           try {
-            const recorder = new MediaRecorder(stream, {
-              mimeType: "audio/webm",
-            })
+            let mimeType;
+            if (MediaRecorder.isTypeSupported('audio/webm')) {
+              mimeType = 'audio/webm';
+            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+              mimeType = 'audio/mp4';
+            }
+
+            const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
 
             recorder.addEventListener("dataavailable", (event) => {
               if (event.data.size > 0 && connection.socket.readyState === 1) {

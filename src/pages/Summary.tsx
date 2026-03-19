@@ -1,44 +1,66 @@
+import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Copy, CheckCircle, AlertCircle, FileText, ArrowLeft } from "lucide-react"
+import { Copy, CheckCircle, AlertCircle, FileText, ArrowLeft, Loader2 } from "lucide-react"
 
 export default function Summary() {
   const params = useParams()
-  console.log(params.id) // To suppress unused variable warning while keeping realistic logic
   const navigate = useNavigate()
+  
+  const [loading, setLoading] = useState(true)
+  const [callData, setCallData] = useState<any>(null)
+  const [summaryData, setSummaryData] = useState<any>(null)
 
-  // Mock data for now
-  const summaryData = {
-    customerName: "Acme Corp",
-    date: "Oct 24, 2026",
-    duration: "14m 20s",
-    summary: "The customer is experiencing low win rates and is looking for a coaching solution. They are currently using Gong but find it difficult to derive actionable insights mid-call. They seemed very receptive to the idea of real-time suggestions.",
-    objections: [
-      "Budget constraints for Q4",
-      "Concerns about onboarding time for 50 reps"
-    ],
-    nextSteps: [
-      "Send pricing proposal by Friday",
-      "Schedule technical demo with their VP of Sales next Tuesday"
-    ],
-    sentiment: { value: "Positive", reason: "Expressed clear interest in real-time features and agreed to a follow-up." }
+  useEffect(() => {
+    if (!params.id) return
+    setLoading(true)
+    fetch(`/api/call/${params.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.call && data.call.length > 0) {
+          setCallData(data.call[0])
+        }
+        if (data.summary && data.summary.length > 0) {
+          setSummaryData(data.summary[0])
+        }
+      })
+      .catch(err => console.error("Failed to load summary", err))
+      .finally(() => setLoading(false))
+  }, [params.id])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-20 flex-col gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+        <p className="text-zinc-500 font-medium animate-pulse">Generating final AI Summary. This takes about 10 seconds...</p>
+      </div>
+    )
+  }
+
+  if (!summaryData) {
+    return (
+      <div className="flex items-center justify-center p-20 flex-col gap-4">
+        <p className="text-zinc-500 font-medium">Summary not found or still processing.</p>
+        <Button onClick={() => navigate('/')} variant="outline">Go back to Dashboard</Button>
+      </div>
+    )
   }
 
   const handleCopy = () => {
     const text = `
-Call Summary: ${summaryData.customerName}
-Date: ${summaryData.date} | Duration: ${summaryData.duration}
+Call Summary: ${callData?.customer_name || 'Customer'}
+Date: ${new Date(callData?.start_time || Date.now()).toLocaleDateString()} | Duration: ${callData?.duration || 0}s
 
 📋 Summary
 ${summaryData.summary}
 
 ⚠️ Objections
-${summaryData.objections.map(o => "- " + o).join("\n")}
+${(summaryData.objections || []).map((o: string) => "- " + o).join("\n")}
 
 ✅ Next Steps
-${summaryData.nextSteps.map(o => "- " + o).join("\n")}
+${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
     `.trim()
     navigator.clipboard.writeText(text)
   }
@@ -54,11 +76,11 @@ ${summaryData.nextSteps.map(o => "- " + o).join("\n")}
           >
             <ArrowLeft className="w-4 h-4" /> Back to Dashboard
           </button>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900">{summaryData.customerName}</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900">{callData?.customer_name || 'Customer'}</h1>
           <div className="text-zinc-500 mt-2 flex items-center gap-3 text-sm">
-            <span>{summaryData.date}</span>
+            <span>{new Date(callData?.start_time || Date.now()).toLocaleDateString()}</span>
             <span className="w-1 h-1 rounded-full bg-zinc-300" />
-            <span>{summaryData.duration}</span>
+            <span>{callData?.duration || 0}s</span>
           </div>
         </div>
         <Button onClick={handleCopy} variant="outline" className="gap-2 font-medium">
@@ -88,7 +110,7 @@ ${summaryData.nextSteps.map(o => "- " + o).join("\n")}
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
-              {summaryData.objections.map((obj, i) => (
+              {(summaryData.objections || []).map((obj: string, i: number) => (
                 <li key={i} className="flex gap-3 text-zinc-700">
                   <span className="text-zinc-300 mt-1">•</span>
                   <span className="leading-relaxed">{obj}</span>
@@ -107,7 +129,7 @@ ${summaryData.nextSteps.map(o => "- " + o).join("\n")}
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
-              {summaryData.nextSteps.map((step, i) => (
+              {(summaryData.next_steps || []).map((step: string, i: number) => (
                 <li key={i} className="flex gap-3 text-zinc-700 font-medium">
                   <span className="text-green-500/50 mt-1">•</span>
                   <span className="leading-relaxed">{step}</span>
@@ -126,9 +148,8 @@ ${summaryData.nextSteps.map(o => "- " + o).join("\n")}
           </CardHeader>
           <CardContent className="flex items-start gap-4">
             <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 text-sm py-1">
-              {summaryData.sentiment.value}
+              {summaryData.sentiment || "Neutral"}
             </Badge>
-            <p className="text-zinc-600 mt-0.5">{summaryData.sentiment.reason}</p>
           </CardContent>
         </Card>
       </div>

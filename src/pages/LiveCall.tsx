@@ -86,7 +86,7 @@ export default function LiveCall() {
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
           {transcripts.length === 0 && !stream && (
             <div className="text-zinc-400 text-center mt-10">
-              Click "Start Listening" to begin capturing tab audio.
+              Click "Start Listening" to begin capturing microphone audio.
             </div>
           )}
           {transcripts.map((t) => (
