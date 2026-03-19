@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Fetch recent calls
-    fetch('/api/calls')
+    fetch('/api/calls', { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
       .then(res => res.json())
       .then(data => setCalls(data || []))
       .catch(err => console.error("Failed to fetch calls:", err))

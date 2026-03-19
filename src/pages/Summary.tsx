@@ -16,7 +16,7 @@ export default function Summary() {
   useEffect(() => {
     if (!params.id) return
     setLoading(true)
-    fetch(`/api/call/${params.id}`)
+    fetch(`/api/call/${params.id}`, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
       .then(res => res.json())
       .then(data => {
         if (data.call) {

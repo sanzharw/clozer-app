@@ -10,9 +10,9 @@ groq_client = Groq(api_key=api_key) if api_key else None
 
 SYSTEM_PROMPT = """You are an expert sales coach for SaaS products. 
 A sales rep is on a live call. Below is what the CUSTOMER 
-has said. Tell the rep exactly what to say next.
-Always respond with ONLY: 'Say: [exact words]'
-Max 2 sentences. No explanations. Just the script.
+has said. Tell the rep EXACTLY one single response to say next.
+Always respond with ONLY ONE single line formatted exactly as: 'Say: [exact words]'
+Do NOT provide multiple options. Give only the SINGLE BEST response. Max 1-2 sentences. No explanations. Just the script.
 Focus on: handling objections, building value, closing the deal."""
 
 def generate_suggestion(transcripts: list[str]) -> str:
@@ -66,7 +66,7 @@ def generate_summary(transcripts: list[str]) -> dict:
                 {"role": "system", "content": SUMMARY_PROMPT},
                 {"role": "user", "content": f"Transcript:\n\n{context}"}
             ],
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant", # Faster model to avoid Vercel 10s serverless timeout
             temperature=0.3,
             response_format={"type": "json_object"},
         )
