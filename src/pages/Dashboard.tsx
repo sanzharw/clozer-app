@@ -45,8 +45,9 @@ export default function Dashboard() {
       if (!res.ok) {
         let errMessage = "Unknown Server Error"
         try {
-          const errData = await res.json()
-          errMessage = errData.error || errData.detail || await res.text()
+          const cloned = res.clone()
+          const errData = await cloned.json()
+          errMessage = errData.error || errData.detail || "Error " + res.status
         } catch {
           errMessage = await res.text()
         }
