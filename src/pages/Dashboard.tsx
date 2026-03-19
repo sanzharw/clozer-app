@@ -42,13 +42,21 @@ export default function Dashboard() {
         },
         body: JSON.stringify({ customer_name: customerName })
       })
-      if (!res.ok) throw new Error("Failed to start call")
+      if (!res.ok) {
+        let errMessage = "Unknown Server Error"
+        try {
+          const errData = await res.json()
+          errMessage = errData.error || errData.detail || await res.text()
+        } catch {
+          errMessage = await res.text()
+        }
+        alert(`CRITICAL ERROR! The backend Database insertion failed: ${errMessage}`)
+        throw new Error("Failed to start call")
+      }
       const data = await res.json()
       navigate(`/call/${data.call_id}`)
     } catch (err) {
       console.error(err)
-      // Fallback for dev/testing without backend
-      navigate(`/call/fake-id-${Date.now()}`)
     } finally {
       setLoading(false)
     }
