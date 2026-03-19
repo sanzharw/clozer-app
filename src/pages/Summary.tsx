@@ -19,11 +19,11 @@ export default function Summary() {
     fetch(`/api/call/${params.id}`)
       .then(res => res.json())
       .then(data => {
-        if (data.call && data.call.length > 0) {
-          setCallData(data.call[0])
+        if (data.call) {
+          setCallData(data.call)
         }
-        if (data.summary && data.summary.length > 0) {
-          setSummaryData(data.summary[0])
+        if (data.summary) {
+          setSummaryData(data.summary)
         }
       })
       .catch(err => console.error("Failed to load summary", err))
