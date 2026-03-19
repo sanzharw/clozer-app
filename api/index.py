@@ -1,3 +1,9 @@
+import os
+import sys
+
+# Connect the current 'api/' directory to Python's paths so Vercel Serverless can find local files!
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
