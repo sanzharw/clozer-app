@@ -42,30 +42,34 @@ async def add_transcript(req: TranscriptRequest):
 
 @app.post("/api/get-suggestion")
 async def get_suggestion(req: SuggestionRequest):
-    if not supabase:
-        # Mock logic if no DB
-        suggestion = generate_suggestion([req.transcript])
+    try:
+        if not supabase:
+            # Mock logic if no DB
+            suggestion = generate_suggestion([req.transcript])
+            return {"suggestion": suggestion}
+        
+        # Save current transcript first
+        supabase.table("transcripts").insert({
+            "call_id": req.call_id,
+            "speaker": "Customer:",
+            "text": req.transcript
+        }).execute()
+        
+        # Get last 10 lines
+        res = supabase.table("transcripts").select("text").eq("call_id", req.call_id).order("timestamp", desc=True).limit(10).execute()
+        lines = [r["text"] for r in reversed(res.data)] if res.data else [req.transcript]
+        
+        suggestion = generate_suggestion(lines)
+        
+        supabase.table("suggestions").insert({
+            "call_id": req.call_id,
+            "suggestion": suggestion
+        }).execute()
+        
         return {"suggestion": suggestion}
-    
-    # Save current transcript first
-    supabase.table("transcripts").insert({
-        "call_id": req.call_id,
-        "speaker": "Customer:",
-        "text": req.transcript
-    }).execute()
-    
-    # Get last 10 lines
-    res = supabase.table("transcripts").select("text").eq("call_id", req.call_id).order("timestamp", desc=True).limit(10).execute()
-    lines = [r["text"] for r in reversed(res.data)] if res.data else [req.transcript]
-    
-    suggestion = generate_suggestion(lines)
-    
-    supabase.table("suggestions").insert({
-        "call_id": req.call_id,
-        "suggestion": suggestion
-    }).execute()
-    
-    return {"suggestion": suggestion}
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc()}
 
 @app.post("/api/end-call")
 async def end_call(req: EndCallRequest):
