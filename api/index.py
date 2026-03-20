@@ -11,7 +11,7 @@ from database import supabase
 from models import StartCallRequest, TranscriptRequest, SuggestionRequest, EndCallRequest
 from llm import generate_suggestion, generate_summary
 
-app = FastAPI(title="Clozer API")
+app = FastAPI(title="Tyndap API")
 
 app.add_middleware(
     CORSMiddleware,
