@@ -12,7 +12,9 @@ export default function LiveCall() {
   const { t, language } = useLanguage()
   
   const { stream, startCapture, stopCapture, error: captureError } = useAudioCapture()
-  const { transcripts } = useDeepgram(stream, language)
+  const { transcripts, socketStatus } = useDeepgram(stream, language)
+  
+  const wordCount = transcripts.reduce((acc, t) => acc + t.text.split(/\s+/).filter(Boolean).length, 0)
   
   const [suggestion, setSuggestion] = useState<string>("")
   const [previousSuggestions, setPreviousSuggestions] = useState<string[]>([])
@@ -162,6 +164,14 @@ export default function LiveCall() {
         </header>
         
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+          {!stream && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-sm font-medium flex gap-2 items-start">
+              <span>⚠️</span>
+              {language === 'ru' 
+                ? "При выборе вкладки обязательно поставьте галочку 'Поделиться звуком вкладки', иначе звук не будет захвачен"
+                : "When selecting a tab, you MUST check the 'Share tab audio' checkbox or no audio will be captured"}
+            </div>
+          )}
           {transcripts.length === 0 && !stream && (
             <div className="text-zinc-400 text-center mt-10">
               {language === 'ru' ? 'Нажмите "Слушать" чтобы начать аудио транскрипцию.' : 'Click "Start Listening" to begin audio transcription.'}
@@ -175,6 +185,14 @@ export default function LiveCall() {
               </span>
             </div>
           ))}
+        </div>
+
+        <div className="p-2 border-t bg-zinc-100 flex items-center justify-between text-xs font-mono text-zinc-500 shrink-0">
+          <div className="flex items-center gap-4">
+            <span>🎤 Audio: {stream ? 'active' : 'inactive'}</span>
+            <span>📡 Deepgram: {socketStatus}</span>
+          </div>
+          <div>📝 Words: {wordCount}</div>
         </div>
 
         <div className="p-4 border-t bg-zinc-50 shrink-0 flex gap-4">

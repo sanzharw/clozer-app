@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react"
-import { DeepgramClient } from "@deepgram/sdk"
 
 export type TranscriptLine = {
   id: string
@@ -11,10 +10,15 @@ export type TranscriptLine = {
 
 export function useDeepgram(stream: MediaStream | null, language: string = 'ru') {
   const [transcripts, setTranscripts] = useState<TranscriptLine[]>([])
+  const [socketStatus, setSocketStatus] = useState<string>("disconnected")
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const socketRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
-    if (!stream) return
+    if (!stream) {
+      setSocketStatus("disconnected")
+      return
+    }
 
     const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY
     if (!apiKey) {
@@ -22,26 +26,25 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
       return
     }
 
-    const client = new DeepgramClient({ apiKey })
-    
-    // Configure Deepgram live stream. In v3+, connect returns the socket directly or needs setup
-    const setupConnection = async () => {
+    setSocketStatus("connecting")
+
+    const setupConnection = () => {
       try {
-        const connection = await client.listen.v1.connect({
-          model: "nova-2",
-          language: language,
-          smart_format: "true",
-          interim_results: "true",
-          endpointing: 300,
-          Authorization: `Token ${apiKey}`
-        } as any)
+        const socket = new WebSocket(
+          `wss://api.deepgram.com/v1/listen?language=${language}&model=nova-2&interim_results=true&punctuate=true`,
+          ['token', apiKey]
+        )
+        socketRef.current = socket
 
-        connection.on("open", () => {
-          console.log("Deepgram connected")
-
+        socket.onopen = () => {
+          setSocketStatus("connected")
+          console.log("Deepgram socket connected")
+          
           try {
             let mimeType;
-            if (MediaRecorder.isTypeSupported('audio/webm')) {
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+              mimeType = 'audio/webm;codecs=opus';
+            } else if (MediaRecorder.isTypeSupported('audio/webm')) {
               mimeType = 'audio/webm';
             } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
               mimeType = 'audio/mp4';
@@ -50,8 +53,8 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
             const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
 
             recorder.addEventListener("dataavailable", (event) => {
-              if (event.data.size > 0 && connection.socket.readyState === 1) {
-                connection.socket.send(event.data)
+              if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
+                socket.send(event.data)
               }
             })
 
@@ -59,62 +62,61 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
             mediaRecorderRef.current = recorder
           } catch (err) {
             console.error("Failed to start MediaRecorder:", err)
+            setSocketStatus("error")
           }
-        })
+        }
 
-        connection.on("message", (data: any) => {
-          // If it is a string containing JSON, we need to parse it or if SDK already parsed it
-          let msg = data
-          if (typeof data === 'string') {
-             try { msg = JSON.parse(data) } catch (e) {}
-          }
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data)
+            const transcript = data.channel?.alternatives?.[0]?.transcript
+            const isFinal = data.is_final
 
-          if (msg.type !== "Results") return
-          
-          const transcriptStr = msg.channel?.alternatives?.[0]?.transcript
-          if (!transcriptStr) return
-
-          const isFinal = msg.is_final
-
-          setTranscripts((prev) => {
-            const last = prev[prev.length - 1]
-            
-            // If the last one isn't final, we update it instead of adding a new one
-            if (last && !last.isFinal) {
-              const newArr = [...prev]
-              newArr[newArr.length - 1] = {
-                ...last,
-                text: transcriptStr,
-                isFinal
-              }
-              return newArr
+            if (transcript && transcript.trim() !== '') {
+              setTranscripts((prev) => {
+                const last = prev[prev.length - 1]
+                
+                // If the last one isn't final, update it
+                if (last && !last.isFinal) {
+                  const newArr = [...prev]
+                  newArr[newArr.length - 1] = {
+                    ...last,
+                    text: transcript,
+                    isFinal
+                  }
+                  return newArr
+                }
+                
+                // Add new line
+                return [
+                  ...prev,
+                  {
+                    id: crypto.randomUUID(),
+                    speaker: "Customer:",
+                    text: transcript,
+                    isFinal,
+                    timestamp: Date.now()
+                  }
+                ]
+              })
             }
-            
-            // Add new line
-            return [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                speaker: "Customer:",
-                text: transcriptStr,
-                isFinal,
-                timestamp: Date.now()
-              }
-            ]
-          })
-        })
+          } catch (e) {
+            console.error("Error parsing Deepgram message:", e)
+          }
+        }
 
-        connection.on("error", (err: any) => {
+        socket.onerror = (err) => {
           console.error("Deepgram Error:", err)
-        })
+          setSocketStatus("error")
+        }
 
-        connection.on("close", () => {
+        socket.onclose = () => {
           console.log("Deepgram connection closed")
-        })
-
-        connection.connect()
+          setSocketStatus("disconnected")
+        }
       } catch (err) {
-        console.error("Failed to setup connection", err)
+        console.error("Failed to setup socket", err)
+        setSocketStatus("error")
       }
     }
 
@@ -124,8 +126,11 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop()
       }
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.close()
+      }
     }
-  }, [stream])
+  }, [stream, language])
 
-  return { transcripts, setTranscripts }
+  return { transcripts, setTranscripts, socketStatus }
 }

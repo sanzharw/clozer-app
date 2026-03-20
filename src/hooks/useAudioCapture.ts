@@ -11,17 +11,18 @@ export function useAudioCapture() {
         video: true // Chrome completely blocks getDisplayMedia if video is false
       })
       
-      // DO NOT stop the video track, or Chrome instantly terminates the entire audio capture session!
-      // The MediaRecorder configured as 'audio/webm' will naturally ignore the video stream.
-      
-      if (mediaStream.getAudioTracks().length === 0) {
-        mediaStream.getTracks().forEach(t => t.stop())
+      const audioTrack = mediaStream.getAudioTracks()[0]
+      if (!audioTrack) {
+        mediaStream.getVideoTracks().forEach(t => t.stop())
         throw new Error("No audio track found. You must check 'Share tab audio'.")
       }
       
-      setStream(mediaStream)
+      mediaStream.getVideoTracks().forEach(track => track.stop())
+      const audioOnlyStream = new MediaStream([audioTrack])
+      
+      setStream(audioOnlyStream)
       setError(null)
-      return mediaStream
+      return audioOnlyStream
     } catch (err) {
       console.error("Error capturing audio:", err)
       setError(err instanceof Error ? err : new Error("Failed to capture audio"))
