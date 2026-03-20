@@ -55,7 +55,7 @@ async def get_suggestion(req: SuggestionRequest):
     try:
         if not supabase:
             # Mock logic if no DB
-            suggestion = generate_suggestion([req.transcript])
+            suggestion = generate_suggestion([req.transcript], req.language)
             return {"suggestion": suggestion}
         
         # Save current transcript first
@@ -69,7 +69,7 @@ async def get_suggestion(req: SuggestionRequest):
         res = supabase.table("transcripts").select("text").eq("call_id", req.call_id).order("timestamp", desc=True).limit(10).execute()
         lines = [r["text"] for r in reversed(res.data)] if res.data else [req.transcript]
         
-        suggestion = generate_suggestion(lines)
+        suggestion = generate_suggestion(lines, req.language)
         
         supabase.table("suggestions").insert({
             "call_id": req.call_id,

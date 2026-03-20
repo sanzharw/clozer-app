@@ -12,6 +12,7 @@ class TranscriptRequest(BaseModel):
 class SuggestionRequest(BaseModel):
     call_id: str
     transcript: str
+    language: str = "ru"
 
 class EndCallRequest(BaseModel):
     call_id: str

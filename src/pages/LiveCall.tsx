@@ -50,7 +50,7 @@ export default function LiveCall() {
       const res = await fetch(`/api/get-suggestion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ call_id: id, transcript: text })
+        body: JSON.stringify({ call_id: id, transcript: text, language })
       })
 
       if (!res.ok) {
