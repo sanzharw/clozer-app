@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+api_key = os.getenv("GROQ_API_KEY")
+groq_client = Groq(api_key=api_key) if api_key else None
+
 SYSTEM_PROMPT_RU = """Ты эксперт по продажам SaaS продуктов. 
 Продажник сейчас на живом звонке с клиентом. 
 Ниже написано что сказал КЛИЕНТ.
