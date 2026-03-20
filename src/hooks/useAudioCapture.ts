@@ -11,8 +11,13 @@ export function useAudioCapture() {
         video: true // Chrome completely blocks getDisplayMedia if video is false
       })
       
-      // Stop unneeded video track if forced
-      mediaStream.getVideoTracks().forEach(t => t.stop())
+      // DO NOT stop the video track, or Chrome instantly terminates the entire audio capture session!
+      // The MediaRecorder configured as 'audio/webm' will naturally ignore the video stream.
+      
+      if (mediaStream.getAudioTracks().length === 0) {
+        mediaStream.getTracks().forEach(t => t.stop())
+        throw new Error("No audio track found. You must check 'Share tab audio'.")
+      }
       
       setStream(mediaStream)
       setError(null)
