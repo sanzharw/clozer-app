@@ -150,8 +150,12 @@ export default function LiveCall() {
               </>
             ) : captureError ? (
               <>
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                <span className="font-medium text-red-500">{t('livecall_listening_failed')}</span>
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+                <span className="font-medium text-red-500 text-sm max-w-[400px] truncate" title={captureError.message}>
+                  {captureError.message === "No audio track found. You must check 'Share tab audio'." 
+                    ? (language === 'ru' ? "ОШИБКА: Вы не поставили галочку 'Поделиться звуком вкладки'." : captureError.message)
+                    : captureError.message || t('livecall_listening_failed')}
+                </span>
               </>
             ) : (
               <>
