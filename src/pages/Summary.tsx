@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Copy, CheckCircle, AlertCircle, FileText, ArrowLeft, Loader2 } from "lucide-react"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export default function Summary() {
+  const { t } = useLanguage()
   const params = useParams()
   const navigate = useNavigate()
   
@@ -50,17 +52,17 @@ export default function Summary() {
 
   const handleCopy = () => {
     const text = `
-Call Summary: ${callData?.customer_name || 'Customer'}
-Date: ${new Date(callData?.start_time || Date.now()).toLocaleDateString()} | Duration: ${callData?.duration || 0}s
+${t('summary_title')}: ${callData?.customer_name || 'Customer'}
+${t('dashboard_table_date')}: ${new Date(callData?.start_time || Date.now()).toLocaleDateString()} | ${t('dashboard_table_duration')}: ${callData?.duration || 0}s
 
-📋 Summary
+📋 ${t('summary_title')}
 ${summaryData.summary}
 
-⚠️ Objections
+⚠️ ${t('summary_objections')}
 ${(summaryData.objections || []).map((o: string) => "- " + o).join("\n")}
 
-✅ Next Steps
-${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
+✅ ${t('summary_next_steps')}
+${(summaryData.next_steps || []).map((o: string) => "- " + o).join("\n")}
     `.trim()
     navigator.clipboard.writeText(text)
   }
@@ -74,7 +76,7 @@ ${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
             onClick={() => navigate('/')}
             className="text-zinc-500 hover:text-zinc-900 mb-4 inline-flex items-center gap-2 text-sm font-medium transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+            <ArrowLeft className="w-4 h-4" /> {t('summary_back')}
           </button>
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900">{callData?.customer_name || 'Customer'}</h1>
           <div className="text-zinc-500 mt-2 flex items-center gap-3 text-sm">
@@ -84,7 +86,7 @@ ${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
           </div>
         </div>
         <Button onClick={handleCopy} variant="outline" className="gap-2 font-medium">
-          <Copy className="w-4 h-4" /> Copy to clipboard
+          <Copy className="w-4 h-4" /> {t('summary_copy')}
         </Button>
       </div>
 
@@ -93,7 +95,7 @@ ${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
         <Card className="col-span-2 shadow-sm border-zinc-200">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <FileText className="w-5 h-5 text-zinc-400" /> Call Summary
+              <FileText className="w-5 h-5 text-zinc-400" /> {t('summary_title')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -105,7 +107,7 @@ ${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
         <Card className="shadow-sm border-zinc-200">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg text-amber-700">
-              <AlertCircle className="w-5 h-5" /> Objections Raised
+              <AlertCircle className="w-5 h-5" /> {t('summary_objections')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -124,7 +126,7 @@ ${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
         <Card className="shadow-sm border-zinc-200 bg-green-50/30">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg text-green-700">
-              <CheckCircle className="w-5 h-5" /> Next Steps
+              <CheckCircle className="w-5 h-5" /> {t('summary_next_steps')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -143,12 +145,12 @@ ${(summaryData.nextSteps || []).map((o: string) => "- " + o).join("\n")}
         <Card className="col-span-2 shadow-sm border-zinc-200">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              📊 Sentiment
+              📊 {t('summary_sentiment')}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-start gap-4">
             <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 text-sm py-1">
-              {summaryData.sentiment || "Neutral"}
+              {summaryData.sentiment || t('summary_sentiment_neutral')}
             </Badge>
           </CardContent>
         </Card>

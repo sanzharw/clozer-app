@@ -9,7 +9,7 @@ export type TranscriptLine = {
   timestamp: number
 }
 
-export function useDeepgram(stream: MediaStream | null) {
+export function useDeepgram(stream: MediaStream | null, language: string = 'ru') {
   const [transcripts, setTranscripts] = useState<TranscriptLine[]>([])
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
 
@@ -29,7 +29,7 @@ export function useDeepgram(stream: MediaStream | null) {
       try {
         const connection = await client.listen.v1.connect({
           model: "nova-2",
-          language: "en",
+          language: language,
           smart_format: "true",
           interim_results: "true",
           endpointing: 300,

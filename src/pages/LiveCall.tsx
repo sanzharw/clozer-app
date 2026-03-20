@@ -3,18 +3,21 @@ import { useParams, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { useAudioCapture } from "@/hooks/useAudioCapture"
 import { useDeepgram } from "@/hooks/useDeepgram"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export default function LiveCall() {
   const { id } = useParams()
   const navigate = useNavigate()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { t, language } = useLanguage()
   
-  const { stream, startCapture, stopCapture } = useAudioCapture()
-  const { transcripts } = useDeepgram(stream)
+  const { stream, startCapture, stopCapture, error: captureError } = useAudioCapture()
+  const { transcripts } = useDeepgram(stream, language)
   
   const [suggestion, setSuggestion] = useState<string>("")
   const [previousSuggestions, setPreviousSuggestions] = useState<string[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [showInstruction, setShowInstruction] = useState(false)
   const lastProcessedTranscriptIdRef = useRef<string | null>(null)
 
   // Auto-scroll
@@ -23,6 +26,21 @@ export default function LiveCall() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [transcripts])
+
+  const handleStartListening = () => {
+    const shown = localStorage.getItem('clozer_instruction_shown')
+    if (!shown) {
+      setShowInstruction(true)
+    } else {
+      startCapture()
+    }
+  }
+
+  const handleModalAcknowledge = () => {
+    localStorage.setItem('clozer_instruction_shown', 'true')
+    setShowInstruction(false)
+    startCapture()
+  }
 
   const fetchSuggestion = useCallback(async (text: string) => {
     setIsAnalyzing(true)
@@ -83,7 +101,7 @@ export default function LiveCall() {
       await fetch(`/api/end-call`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ call_id: id })
+        body: JSON.stringify({ call_id: id, language })
       })
     } catch (e) {
       console.error("Failed to end call", e)
@@ -92,13 +110,53 @@ export default function LiveCall() {
   }
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex flex-1 overflow-hidden relative">
+      {/* Instruction Modal Overlay */}
+      {showInstruction && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl flex flex-col gap-6 animate-in fade-in zoom-in duration-300">
+            <h3 className="text-2xl font-bold text-zinc-900">{t('modal_title')}</h3>
+            <ol className="flex flex-col gap-4 text-zinc-700 font-medium">
+              <li className="flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center shrink-0">1</div>
+                {t('modal_step_1')}
+              </li>
+              <li className="flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center shrink-0">2</div>
+                {t('modal_step_2')}
+              </li>
+              <li className="flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center shrink-0">3</div>
+                {t('modal_step_3')}
+              </li>
+            </ol>
+            <Button onClick={handleModalAcknowledge} className="w-full bg-[#00C853] hover:bg-[#00E676] text-white py-6 text-lg font-semibold mt-2">
+              {t('modal_button')}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Left Panel: Transcript */}
       <div className="w-[60%] border-r flex flex-col bg-white">
         <header className="h-14 border-b px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className={`w-2.5 h-2.5 rounded-full ${stream ? 'bg-red-500 animate-pulse' : 'bg-zinc-300'}`} />
-            <span className="font-medium text-zinc-900">{stream ? 'Listening...' : 'Ready'}</span>
+            {stream ? (
+              <>
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="font-medium text-green-600">🟢 {t('livecall_listening')}</span>
+              </>
+            ) : captureError ? (
+              <>
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                <span className="font-medium text-red-500">{t('livecall_listening_failed')}</span>
+              </>
+            ) : (
+              <>
+                <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
+                <span className="font-medium text-zinc-900">Ready</span>
+              </>
+            )}
           </div>
           <div className="text-zinc-500 font-mono text-sm">Live</div>
         </header>
@@ -106,7 +164,7 @@ export default function LiveCall() {
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
           {transcripts.length === 0 && !stream && (
             <div className="text-zinc-400 text-center mt-10">
-              Click "Start Listening" to begin capturing microphone audio.
+              {language === 'ru' ? 'Нажмите "Слушать" чтобы начать аудио транскрипцию.' : 'Click "Start Listening" to begin audio transcription.'}
             </div>
           )}
           {transcripts.map((t) => (
@@ -121,12 +179,12 @@ export default function LiveCall() {
 
         <div className="p-4 border-t bg-zinc-50 shrink-0 flex gap-4">
           {!stream ? (
-            <Button onClick={startCapture} className="w-full bg-[#00C853] hover:bg-[#00E676] text-white">
-              Start Listening
+            <Button onClick={handleStartListening} className="w-full bg-[#00C853] hover:bg-[#00E676] text-white">
+              {t('livecall_start')}
             </Button>
           ) : (
             <Button onClick={stopCapture} variant="outline" className="w-full font-medium text-zinc-700">
-              Pause Listening
+              {t('livecall_stop')}
             </Button>
           )}
         </div>
@@ -134,18 +192,18 @@ export default function LiveCall() {
 
       {/* Right Panel: AI Suggestions */}
       <div className="w-[40%] flex flex-col bg-[#FAFAFA]">
-        <header className="h-14 border-b px-6 flex items-center shrink-0">
+        <header className="h-14 border-b px-6 flex items-center justify-between shrink-0">
           <h2 className="font-medium text-zinc-900 flex items-center gap-2">
-            <span className="text-xl">💡</span> Clozer suggests
+            <span className="text-xl">💡</span> {t('livecall_suggestions_title')}
           </h2>
         </header>
         
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
           {suggestion ? (
             <div className="bg-white rounded-xl border shadow-sm p-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-              <div className="text-[#00C853] font-bold mb-2">Say:</div>
+              <div className="text-[#00C853] font-bold mb-2">{language === 'ru' ? 'Скажи:' : 'Say:'}</div>
               <div className="text-[#111111] text-[18px] leading-[1.6]">
-                {suggestion.replace(/^Say:\s*/i, '')}
+                {suggestion.replace(/^(Скажи:|Say:)\s*/i, '')}
               </div>
             </div>
           ) : isAnalyzing ? (
@@ -156,7 +214,7 @@ export default function LiveCall() {
             </div>
           ) : (
             <div className="text-zinc-400 text-center mt-10">
-              Waiting for customer input...
+              {language === 'ru' ? 'Ожидание диалога...' : 'Waiting for customer input...'}
             </div>
           )}
 
@@ -164,9 +222,9 @@ export default function LiveCall() {
             <div className="flex flex-col gap-4 opacity-40">
               {previousSuggestions.map((prev, i) => (
                 <div key={i} className="bg-white rounded-xl border p-5">
-                  <div className="text-[#00C853] font-bold mb-1 text-sm">Say:</div>
+                  <div className="text-[#00C853] font-bold mb-1 text-sm">{language === 'ru' ? 'Скажи:' : 'Say:'}</div>
                   <div className="text-zinc-900 leading-relaxed">
-                    {prev.replace(/^Say:\s*/i, '')}
+                    {prev.replace(/^(Скажи:|Say:)\s*/i, '')}
                   </div>
                 </div>
               ))}
@@ -180,7 +238,7 @@ export default function LiveCall() {
             className="w-full opacity-90 hover:opacity-100 font-medium"
             onClick={handleEndCall}
           >
-            End Call
+            {t('livecall_end_call')}
           </Button>
         </div>
       </div>

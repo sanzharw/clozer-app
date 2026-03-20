@@ -103,7 +103,7 @@ async def end_call(req: EndCallRequest):
     res = supabase.table("transcripts").select("text").eq("call_id", req.call_id).order("timestamp", desc=False).execute()
     lines = [r["text"] for r in res.data] if res.data else []
     
-    summary_data = generate_summary(lines)
+    summary_data = generate_summary(lines, req.language)
     
     # Update call sentiment
     supabase.table("calls").update({

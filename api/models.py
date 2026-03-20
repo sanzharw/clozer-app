@@ -15,3 +15,4 @@ class SuggestionRequest(BaseModel):
 
 class EndCallRequest(BaseModel):
     call_id: str
+    language: str = "ru"

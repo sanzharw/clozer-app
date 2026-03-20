@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useLanguage } from "@/lib/LanguageContext"
 
 type Call = {
   id: string
@@ -16,6 +17,7 @@ type Call = {
 }
 
 export default function Dashboard() {
+  const { t } = useLanguage()
   const [customerName, setCustomerName] = useState("")
   const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(false)
@@ -66,10 +68,10 @@ export default function Dashboard() {
   return (
     <div className="max-w-5xl mx-auto w-full p-8 flex flex-col gap-8">
       <section className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">New Call</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('dashboard_new_call')}</h1>
         <form onSubmit={startCall} className="flex gap-4 items-center">
           <Input 
-            placeholder="Customer Name (e.g. Acme Corp)" 
+            placeholder={t('dashboard_placeholder')} 
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             className="max-w-sm"
@@ -79,27 +81,27 @@ export default function Dashboard() {
             disabled={!customerName.trim() || loading}
             className="bg-[#00C853] hover:bg-[#00E676] text-white font-medium"
           >
-            Start Call
+            {t('dashboard_start_call')}
           </Button>
         </form>
       </section>
 
       <section className="flex flex-col gap-4 mt-8">
-        <h2 className="text-xl font-semibold tracking-tight">Recent Calls</h2>
+        <h2 className="text-xl font-semibold tracking-tight">{t('dashboard_recent_calls')}</h2>
         
         {calls.length === 0 ? (
           <div className="h-40 border rounded-xl border-dashed flex items-center justify-center text-zinc-500 bg-zinc-50/50">
-            No calls yet. Start your first call above.
+            {t('dashboard_empty_calls')}
           </div>
         ) : (
           <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
             <Table>
               <TableHeader className="bg-zinc-50/80">
                 <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Sentiment</TableHead>
+                  <TableHead>{t('dashboard_table_customer')}</TableHead>
+                  <TableHead>{t('dashboard_table_date')}</TableHead>
+                  <TableHead>{t('dashboard_table_duration')}</TableHead>
+                  <TableHead>{t('dashboard_table_sentiment')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -117,14 +119,14 @@ export default function Dashboard() {
                     <TableCell>
                       {call.sentiment ? (
                         <Badge variant="outline" className={
-                          call.sentiment.toLowerCase() === 'positive' ? 'border-green-200 text-green-700 bg-green-50' :
-                          call.sentiment.toLowerCase() === 'negative' ? 'border-red-200 text-red-700 bg-red-50' :
+                          call.sentiment.toLowerCase() === 'positive' || call.sentiment.toLowerCase() === 'позитивное' ? 'border-green-200 text-green-700 bg-green-50' :
+                          call.sentiment.toLowerCase() === 'negative' || call.sentiment.toLowerCase() === 'негативное' ? 'border-red-200 text-red-700 bg-red-50' :
                           'border-yellow-200 text-yellow-700 bg-yellow-50'
                         }>
                           {call.sentiment}
                         </Badge>
                       ) : (
-                        <Badge variant="secondary" className="bg-zinc-100 text-zinc-600">Active</Badge>
+                        <Badge variant="secondary" className="bg-zinc-100 text-zinc-600">{t('dashboard_active')}</Badge>
                       )}
                     </TableCell>
                   </TableRow>

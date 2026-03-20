@@ -6,9 +6,13 @@ export function useAudioCapture() {
 
   const startCapture = useCallback(async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      const mediaStream = await navigator.mediaDevices.getDisplayMedia({
         audio: true,
+        video: false
       })
+      
+      // Stop unneeded video track if forced
+      mediaStream.getVideoTracks().forEach(t => t.stop())
       
       setStream(mediaStream)
       setError(null)
