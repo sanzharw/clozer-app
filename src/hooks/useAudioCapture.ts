@@ -8,7 +8,7 @@ export function useAudioCapture() {
     try {
       const mediaStream = await navigator.mediaDevices.getDisplayMedia({
         audio: true,
-        video: false
+        video: true // Chrome completely blocks getDisplayMedia if video is false
       })
       
       // Stop unneeded video track if forced
