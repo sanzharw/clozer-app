@@ -6,6 +6,7 @@ import Summary from "./pages/Summary"
 import { Login } from "./pages/Login"
 import { Register } from "./pages/Register"
 import { Onboarding } from "./pages/Onboarding"
+import { Settings } from "./pages/Settings"
 import { ProtectedRoute } from "./components/layout/ProtectedRoute"
 import { AuthProvider } from "./lib/AuthContext"
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
           <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/call/:id" element={<LiveCall />} />
             <Route path="/summary/:id" element={<Summary />} />
           </Route>
