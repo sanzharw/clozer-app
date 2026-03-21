@@ -225,7 +225,7 @@ export default function LiveCall() {
             <div className="bg-white rounded-xl border shadow-sm p-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="text-[#00C853] font-bold mb-2">{language === 'ru' ? 'Скажи:' : 'Say:'}</div>
               <div className="text-[#111111] text-[18px] leading-[1.6]">
-                {suggestion.replace(/^(Скажи:|Say:)\s*/i, '')}
+                {suggestion.replace(/(Скажи:|Say:)\s*/ig, '').replace(/^["']|["']$/g, '')}
               </div>
             </div>
           ) : isAnalyzing ? (
@@ -246,7 +246,7 @@ export default function LiveCall() {
                 <div key={i} className="bg-white rounded-xl border p-5">
                   <div className="text-[#00C853] font-bold mb-1 text-sm">{language === 'ru' ? 'Скажи:' : 'Say:'}</div>
                   <div className="text-zinc-900 leading-relaxed">
-                    {prev.replace(/^(Скажи:|Say:)\s*/i, '')}
+                    {prev.replace(/(Скажи:|Say:)\s*/ig, '').replace(/^["']|["']$/g, '')}
                   </div>
                 </div>
               ))}
