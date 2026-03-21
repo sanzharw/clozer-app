@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 
 class StartCallRequest(BaseModel):
     customer_name: str
+    user_id: str | None = None
 
 class TranscriptRequest(BaseModel):
     call_id: str

@@ -28,6 +28,7 @@ async def start_call(req: StartCallRequest):
             return {"error": "Supabase not configured or invalid credentials."}
         
         res = supabase.table("calls").insert({
+            "user_id": req.user_id,
             "customer_name": req.customer_name,
             "status": "active"
         }).execute()
@@ -115,9 +116,12 @@ async def end_call(req: EndCallRequest):
     return {"success": True, "summary": summary_data}
 
 @app.get("/api/calls")
-async def list_calls():
+async def list_calls(user_id: str = None):
     if not supabase: return []
-    res = supabase.table("calls").select("*").order("start_time", desc=True).execute()
+    query = supabase.table("calls").select("*")
+    if user_id:
+        query = query.eq("user_id", user_id)
+    res = query.order("start_time", desc=True).execute()
     return res.data if res.data else []
 
 @app.get("/api/call/{call_id}")
