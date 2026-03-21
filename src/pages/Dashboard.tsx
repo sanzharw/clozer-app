@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useLanguage } from "@/lib/LanguageContext"
+import { useAuth } from "@/lib/AuthContext"
 
 type Call = {
   id: string
@@ -18,6 +19,7 @@ type Call = {
 
 export default function Dashboard() {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const [customerName, setCustomerName] = useState("")
   const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(false)
@@ -25,11 +27,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Fetch recent calls
-    fetch('/api/calls', { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
+    fetch(`/api/calls${user?.id ? `?user_id=${user.id}` : ''}`, { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } })
       .then(res => res.json())
       .then(data => setCalls(data || []))
       .catch(err => console.error("Failed to fetch calls:", err))
-  }, [setCalls])
+  }, [setCalls, user?.id])
 
   const startCall = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,7 +44,10 @@ export default function Dashboard() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ customer_name: customerName })
+        body: JSON.stringify({ 
+          customer_name: customerName,
+          user_id: user?.id
+        })
       })
       if (!res.ok) {
         let errMessage = "Unknown Server Error"
