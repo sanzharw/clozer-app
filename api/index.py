@@ -58,13 +58,6 @@ async def get_suggestion(req: SuggestionRequest):
             suggestion = generate_suggestion([req.transcript], req.language)
             return {"suggestion": suggestion}
         
-        # Save current transcript first
-        supabase.table("transcripts").insert({
-            "call_id": req.call_id,
-            "speaker": "Customer:",
-            "text": req.transcript
-        }).execute()
-        
         # Get last 10 lines
         res = supabase.table("transcripts").select("text").eq("call_id", req.call_id).order("timestamp", desc=True).limit(10).execute()
         lines = [r["text"] for r in reversed(res.data)] if res.data else [req.transcript]

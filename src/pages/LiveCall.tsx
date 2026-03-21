@@ -20,7 +20,8 @@ export default function LiveCall() {
   const [previousSuggestions, setPreviousSuggestions] = useState<string[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [showInstruction, setShowInstruction] = useState(false)
-  const lastProcessedTranscriptIdRef = useRef<string | null>(null)
+  const lastSavedIndexRef = useRef<number>(-1)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Auto-scroll
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function LiveCall() {
   }
 
   const fetchSuggestion = useCallback(async (text: string) => {
-    setIsAnalyzing(true)
+    // setIsAnalyzing is handled by the debounce trigger
     try {
       const res = await fetch(`/api/get-suggestion`, {
         method: 'POST',
@@ -90,12 +91,29 @@ export default function LiveCall() {
     const finalTranscripts = transcripts.filter(t => t.isFinal)
     if (finalTranscripts.length === 0) return
     
-    const lastFinal = finalTranscripts[finalTranscripts.length - 1]
-    if (lastProcessedTranscriptIdRef.current !== lastFinal.id) {
-      lastProcessedTranscriptIdRef.current = lastFinal.id
-      fetchSuggestion(lastFinal.text)
+    let newlySaved = false
+    
+    for (let i = lastSavedIndexRef.current + 1; i < finalTranscripts.length; i++) {
+      const t = finalTranscripts[i]
+      fetch(`/api/add-transcript`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ call_id: id, speaker: t.speaker, text: t.text })
+      }).catch(console.error)
+      
+      lastSavedIndexRef.current = i
+      newlySaved = true
     }
-  }, [transcripts, fetchSuggestion])
+    
+    if (newlySaved) {
+      setIsAnalyzing(true)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      
+      debounceRef.current = setTimeout(() => {
+        fetchSuggestion(finalTranscripts[finalTranscripts.length - 1].text)
+      }, 2000)
+    }
+  }, [transcripts, id, fetchSuggestion])
 
   const handleEndCall = async () => {
     stopCapture()
