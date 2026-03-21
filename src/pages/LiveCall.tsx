@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button"
 import { useAudioCapture } from "@/hooks/useAudioCapture"
 import { useDeepgram } from "@/hooks/useDeepgram"
 import { useLanguage } from "@/lib/LanguageContext"
+import { useAuth } from "@/lib/AuthContext"
 
 export default function LiveCall() {
   const { id } = useParams()
   const navigate = useNavigate()
   const scrollRef = useRef<HTMLDivElement>(null)
   const { t, language } = useLanguage()
+  const { user } = useAuth()
   
   const { stream, startCapture, stopCapture, error: captureError } = useAudioCapture()
   const { transcripts, socketStatus } = useDeepgram(stream, language)
@@ -51,7 +53,7 @@ export default function LiveCall() {
       const res = await fetch(`/api/get-suggestion`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ call_id: id, transcript: text, language })
+        body: JSON.stringify({ call_id: id, transcript: text, language, user_id: user?.id })
       })
 
       if (!res.ok) {
@@ -85,7 +87,7 @@ export default function LiveCall() {
     } finally {
       setIsAnalyzing(false)
     }
-  }, [id, suggestion])
+  }, [id, suggestion, language, user?.id])
 
   useEffect(() => {
     const finalTranscripts = transcripts.filter(t => t.isFinal)
@@ -121,7 +123,7 @@ export default function LiveCall() {
       await fetch(`/api/end-call`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ call_id: id, language })
+        body: JSON.stringify({ call_id: id, language, user_id: user?.id })
       })
     } catch (e) {
       console.error("Failed to end call", e)
