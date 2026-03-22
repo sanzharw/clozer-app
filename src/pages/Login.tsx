@@ -26,7 +26,11 @@ export function Login() {
     })
 
     if (error) {
-      setError('Неверный email или пароль')
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        setError('Пожалуйста, подтвердите ваш Email через ссылку в письме, или отключите "Confirm email" в настройках Supabase.')
+      } else {
+        setError(`Ошибка: ${error.message}`)
+      }
       setIsLoading(false)
     } else {
       navigate('/')
