@@ -72,8 +72,20 @@ export function Settings() {
         const res = await supabase.from('profiles').update(payload).eq('user_id', user.id)
         error = res.error
       } else {
-        // Row is missing (e.g. skipped Onboarding), perform a fresh insert
-        const res = await supabase.from('profiles').insert([{ user_id: user.id, ...payload }])
+        // Row is missing (e.g. skipped Onboarding), perform a fresh insert with empty string fallbacks for NOT NULL columns
+        const res = await supabase.from('profiles').insert([{ 
+          user_id: user.id,
+          full_name: '',
+          role: 'Менеджер по продажам',
+          company_name: '',
+          product_name: '',
+          product_description: '',
+          competitors: '',
+          deal_size: 'до $500',
+          sales_script: '',
+          objection_playbook: '',
+          ...payload 
+        }])
         error = res.error
       }
 
