@@ -12,6 +12,7 @@ export const supabase = createClient(
   supabaseAnonKey || '',
   {
     auth: {
+      // @ts-expect-error Vercel strict build flags this missing v2 type
       redirectTo: window.location.origin
     }
   }
