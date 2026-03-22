@@ -39,6 +39,11 @@ export function Header() {
       </Link>
       
       <div className="flex items-center gap-4">
+        {user && (
+          <Link to="/analytics" className="text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors mr-2">
+            Аналитика
+          </Link>
+        )}
         <button 
           onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}
           className="flex items-center gap-2 text-sm font-medium bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-full transition-colors"
