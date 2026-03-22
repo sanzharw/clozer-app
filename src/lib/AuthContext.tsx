@@ -18,34 +18,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    let mounted = true
-
-    async function getInitialSession() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (mounted) {
-          setSession(session)
-          setUser(session?.user ?? null)
-        }
-      } catch (error) {
-        console.error('Error getting session:', error)
-      } finally {
-        if (mounted) setIsLoading(false)
-      }
-    }
-
-    getInitialSession()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setUser(session?.user ?? null)
+      setIsLoading(false)
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session)
         setUser(session?.user ?? null)
-        setIsLoading(false)
       }
     )
 
     return () => {
-      mounted = false
       subscription.unsubscribe()
     }
   }, [])
