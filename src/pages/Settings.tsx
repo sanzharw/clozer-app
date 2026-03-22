@@ -59,16 +59,28 @@ export function Settings() {
     loadProfile()
   }, [user, setLanguage])
 
-  // Universal save function
   const saveProfileField = async (payload: any, setLoading: (s: boolean) => void) => {
     if (!user) return
     setLoading(true)
     try {
-      const { error } = await supabase.from('profiles').update(payload).eq('user_id', user.id)
-      if (error) {
-        alert("Failed to save. " + error.message)
+      // Determine if a profile row already exists for this user
+      const { data: existingProfile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single()
+      
+      let error = null;
+      if (existingProfile) {
+        // Row exists, perform an update
+        const res = await supabase.from('profiles').update(payload).eq('user_id', user.id)
+        error = res.error
       } else {
-        // Optional: show a mini toast or checkmark
+        // Row is missing (e.g. skipped Onboarding), perform a fresh insert
+        const res = await supabase.from('profiles').insert([{ user_id: user.id, ...payload }])
+        error = res.error
+      }
+
+      if (error) {
+        alert("ОШИБКА СОХРАНЕНИЯ: " + error.message)
+      } else {
+        // Optional: you can show a success toast here
       }
     } finally {
       setLoading(false)
