@@ -32,7 +32,7 @@ export default function LiveCall() {
     audioDevices, selectedDeviceId, setSelectedDeviceId,
     selectedDeviceLabel, isBlackHole
   } = useAudioCapture()
-  const { transcripts, socketStatus } = useDeepgram(stream, language)
+  const { transcripts, interimText, socketStatus } = useDeepgram(stream, language)
 
   const wordCount = transcripts.reduce((acc, t) => acc + t.text.split(/\s+/).filter(Boolean).length, 0)
 
@@ -73,7 +73,7 @@ export default function LiveCall() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [transcripts])
+  }, [transcripts, interimText])
 
   // ── Parse AI response ──
   const parseResponse = useCallback((text: string) => {
@@ -161,7 +161,7 @@ export default function LiveCall() {
     }
   }, [id, suggestion, language, user?.id, currentStage, hasScript, parseResponse])
 
-  // ── Trigger suggestion only after 2.5s of silence ──
+  // ── Trigger suggestion after 1.5s of no new finalized transcripts ──
   useEffect(() => {
     const finalTranscripts = transcripts.filter(t => t.isFinal)
     if (finalTranscripts.length === 0) return
@@ -181,13 +181,13 @@ export default function LiveCall() {
     }
 
     if (newlySaved) {
-      // Reset debounce — only trigger suggestion after 2.5s of no new transcripts
+      // Reset debounce — trigger suggestion after 1.5s of silence
       if (debounceRef.current) clearTimeout(debounceRef.current)
 
       debounceRef.current = setTimeout(() => {
         setIsAnalyzing(true)
         fetchSuggestion(finalTranscripts[finalTranscripts.length - 1].text)
-      }, 2500)
+      }, 1500)
     }
   }, [transcripts, id, fetchSuggestion])
 
@@ -321,11 +321,17 @@ export default function LiveCall() {
           {transcripts.map((t) => (
             <div key={t.id} className="mb-2">
               <span className="text-zinc-400 font-medium text-sm mr-3">{t.speaker}</span>
-              <span className={`leading-relaxed ${t.isFinal ? "text-[#111111]" : "text-zinc-500 italic"}`}>
+              <span className="leading-relaxed text-[#111111]">
                 {t.text}
               </span>
             </div>
           ))}
+          {interimText && (
+            <div className="mb-2">
+              <span className="text-zinc-400 font-medium text-sm mr-3">Customer:</span>
+              <span className="leading-relaxed text-zinc-400 italic">{interimText}</span>
+            </div>
+          )}
         </div>
 
         {/* Debug status bar */}
