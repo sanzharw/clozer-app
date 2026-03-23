@@ -70,6 +70,64 @@ Focus on: handling objections, building value, closing the deal."""
         print(f"Error calling Groq for suggestion: {e}")
         return "Say: Error generating suggestion."
 
+STAGE_NAMES = [
+    "Приветствие",
+    "Выявление потребностей",
+    "Презентация продукта",
+    "Работа с возражениями",
+    "Закрытие сделки"
+]
+
+def generate_script_suggestion(transcripts: list[str], language: str = "ru", profile: dict = None, current_stage: int = 0) -> str:
+    """Script-guided AI mode: returns СКРИПТ: or ВОЗРАЖЕНИЕ: prefixed responses."""
+    if not groq_client: return "СКРИПТ:Groq API key not set."
+    
+    context = "\n".join(transcripts[-10:])
+    
+    stage_name = STAGE_NAMES[current_stage] if 0 <= current_stage < len(STAGE_NAMES) else STAGE_NAMES[0]
+    
+    product_name = profile.get('product_name', '') if profile else ''
+    product_description = profile.get('product_description', '') if profile else ''
+    sales_script = profile.get('sales_script', '') if profile else ''
+    competitors = profile.get('competitors', '') if profile else ''
+    
+    system_prompt = f"""Ты эксперт по продажам.
+Продукт: {product_name}
+Описание: {product_description}
+Скрипт продаж: {sales_script}
+Конкуренты: {competitors}
+Текущий этап скрипта: {stage_name}
+Последние слова клиента: {context}
+
+ПРАВИЛА:
+1. Если клиент отвечает нормально и разговор идёт по плану — веди по скрипту.
+   Ответ: СКРИПТ:[следующая фраза из скрипта]
+
+2. Если клиент возражает, сомневается или уходит от темы — переключись на работу с возражением.
+   Ответ: ВОЗРАЖЕНИЕ:[тип] | Скажи: [ответ]
+   Типы возражений: Цена, Время, Конкурент, Полномочия, Сомнение
+
+3. Если звонок начинается — дай первую фразу скрипта.
+   Ответ: СКРИПТ:[первая фраза приветствия]
+
+Отвечай ТОЛЬКО в одном из этих форматов.
+Максимум 2 предложения. Только скрипт или ответ."""
+
+    try:
+        chat_completion = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Разговор:\n\n{context}"}
+            ],
+            model="llama-3.3-70b-versatile",
+            temperature=0.7,
+            max_tokens=150,
+        )
+        return chat_completion.choices[0].message.content
+    except Exception as e:
+        print(f"Error calling Groq for script suggestion: {e}")
+        return "СКРИПТ:Error generating suggestion."
+
 SUMMARY_PROMPT = """You are an expert sales coach. Summarize the following sales call transcript.
 Return a JSON object containing EXACTLY these four keys:
 {

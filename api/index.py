@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from database import supabase
 from models import StartCallRequest, TranscriptRequest, SuggestionRequest, EndCallRequest
-from llm import generate_suggestion, generate_summary
+from llm import generate_suggestion, generate_script_suggestion, generate_summary
 
 app = FastAPI(title="Tyndap API")
 
@@ -54,16 +54,30 @@ async def add_transcript(req: TranscriptRequest):
 @app.post("/api/get-suggestion")
 async def get_suggestion(req: SuggestionRequest):
     try:
+        # Load user profile if user_id is provided
+        profile = None
+        if supabase and req.user_id:
+            profile_res = supabase.table("profiles").select("*").eq("user_id", req.user_id).single().execute()
+            if profile_res.data:
+                profile = profile_res.data
+
         if not supabase:
             # Mock logic if no DB
-            suggestion = generate_suggestion([req.transcript], req.language)
+            if req.has_script and profile and profile.get("sales_script"):
+                suggestion = generate_script_suggestion([req.transcript], req.language, profile, req.current_stage)
+            else:
+                suggestion = generate_suggestion([req.transcript], req.language, profile)
             return {"suggestion": suggestion}
         
         # Get last 10 lines
         res = supabase.table("transcripts").select("text").eq("call_id", req.call_id).order("timestamp", desc=True).limit(10).execute()
         lines = [r["text"] for r in reversed(res.data)] if res.data else [req.transcript]
         
-        suggestion = generate_suggestion(lines, req.language)
+        # Choose between script mode and free mode
+        if req.has_script and profile and profile.get("sales_script"):
+            suggestion = generate_script_suggestion(lines, req.language, profile, req.current_stage)
+        else:
+            suggestion = generate_suggestion(lines, req.language, profile)
         
         supabase.table("suggestions").insert({
             "call_id": req.call_id,

@@ -1,52 +1,107 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
+
+const STORAGE_KEY = "clozer_audio_device_id"
+
+export type AudioDevice = {
+  deviceId: string
+  label: string
+}
 
 export function useAudioCapture() {
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [error, setError] = useState<Error | null>(null)
-  const sourceStreamRef = useRef<MediaStream | null>(null)
+  const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
+  const [selectedDeviceId, setSelectedDeviceIdState] = useState<string>("")
+  const streamRef = useRef<MediaStream | null>(null)
 
-  const startCapture = useCallback(async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-        audio: true,
-        video: true // Chrome completely blocks getDisplayMedia if video is false
-      })
-      
-      const audioTrack = mediaStream.getAudioTracks()[0]
-      if (!audioTrack) {
-        mediaStream.getTracks().forEach(t => t.stop())
-        throw new Error("No audio track found. You must check 'Share tab audio'.")
+  // Enumerate audio input devices on mount
+  useEffect(() => {
+    async function loadDevices() {
+      try {
+        // Need a temp stream to get device labels (browser security)
+        const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        tempStream.getTracks().forEach(t => t.stop())
+
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const audioInputs = devices
+          .filter(d => d.kind === "audioinput" && d.deviceId !== "")
+          .map(d => ({ deviceId: d.deviceId, label: d.label || `Microphone ${d.deviceId.slice(0, 8)}` }))
+
+        setAudioDevices(audioInputs)
+
+        // Restore from localStorage or auto-select BlackHole
+        const savedId = localStorage.getItem(STORAGE_KEY)
+        const blackhole = audioInputs.find(d => d.label.toLowerCase().includes("blackhole"))
+
+        if (savedId && audioInputs.some(d => d.deviceId === savedId)) {
+          setSelectedDeviceIdState(savedId)
+        } else if (blackhole) {
+          setSelectedDeviceIdState(blackhole.deviceId)
+          localStorage.setItem(STORAGE_KEY, blackhole.deviceId)
+        } else if (audioInputs.length > 0) {
+          setSelectedDeviceIdState(audioInputs[0].deviceId)
+        }
+      } catch (err) {
+        console.error("Error enumerating audio devices:", err)
       }
-      
-      // Store the original source stream so we can shut down the video track later!
-      sourceStreamRef.current = mediaStream
-      
-      // Create a clean audio-only stream for the rest of the app to safely consume
-      const audioOnlyStream = new MediaStream([audioTrack])
-      
-      setStream(audioOnlyStream)
+    }
+    loadDevices()
+  }, [])
+
+  const setSelectedDeviceId = useCallback((deviceId: string) => {
+    setSelectedDeviceIdState(deviceId)
+    localStorage.setItem(STORAGE_KEY, deviceId)
+  }, [])
+
+  const startCapture = useCallback(async (deviceId?: string) => {
+    const targetDeviceId = deviceId || selectedDeviceId
+    if (!targetDeviceId) {
+      setError(new Error("No audio device selected"))
+      return null
+    }
+
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { exact: targetDeviceId },
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 16000
+        }
+      })
+
+      streamRef.current = mediaStream
+      setStream(mediaStream)
       setError(null)
-      return audioOnlyStream
+      return mediaStream
     } catch (err) {
       console.error("Error capturing audio:", err)
       setError(err instanceof Error ? err : new Error("Failed to capture audio"))
       return null
     }
-  }, [])
+  }, [selectedDeviceId])
 
   const stopCapture = useCallback(() => {
-    // Stop the actual source stream (which kills video too)
-    if (sourceStreamRef.current) {
-      sourceStreamRef.current.getTracks().forEach((track) => track.stop())
-      sourceStreamRef.current = null
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
     }
-    
-    // Stop the extracted tracks
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
-    }
-  }, [stream])
+    setStream(null)
+  }, [])
 
-  return { stream, startCapture, stopCapture, error }
+  const selectedDeviceLabel = audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || ""
+  const isBlackHole = selectedDeviceLabel.toLowerCase().includes("blackhole")
+
+  return {
+    stream,
+    startCapture,
+    stopCapture,
+    error,
+    audioDevices,
+    selectedDeviceId,
+    setSelectedDeviceId,
+    selectedDeviceLabel,
+    isBlackHole
+  }
 }

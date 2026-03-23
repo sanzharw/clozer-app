@@ -14,7 +14,11 @@ class SuggestionRequest(BaseModel):
     call_id: str
     transcript: str
     language: str = "ru"
+    user_id: str | None = None
+    current_stage: int = 0
+    has_script: bool = False
 
 class EndCallRequest(BaseModel):
     call_id: str
     language: str = "ru"
+    user_id: str | None = None
