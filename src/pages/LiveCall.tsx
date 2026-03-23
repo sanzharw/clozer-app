@@ -161,7 +161,7 @@ export default function LiveCall() {
     }
   }, [id, suggestion, language, user?.id, currentStage, hasScript, parseResponse])
 
-  // ── Trigger suggestion on new final transcript ──
+  // ── Trigger suggestion only after 2.5s of silence ──
   useEffect(() => {
     const finalTranscripts = transcripts.filter(t => t.isFinal)
     if (finalTranscripts.length === 0) return
@@ -181,12 +181,13 @@ export default function LiveCall() {
     }
 
     if (newlySaved) {
-      setIsAnalyzing(true)
+      // Reset debounce — only trigger suggestion after 2.5s of no new transcripts
       if (debounceRef.current) clearTimeout(debounceRef.current)
 
       debounceRef.current = setTimeout(() => {
+        setIsAnalyzing(true)
         fetchSuggestion(finalTranscripts[finalTranscripts.length - 1].text)
-      }, 2000)
+      }, 2500)
     }
   }, [transcripts, id, fetchSuggestion])
 

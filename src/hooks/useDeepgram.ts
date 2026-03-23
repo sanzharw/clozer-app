@@ -32,7 +32,7 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
     const setupConnection = () => {
       try {
         const socket = new WebSocket(
-          `wss://api.deepgram.com/v1/listen?language=${language}&model=nova-2&interim_results=true&punctuate=true&endpointing=300&utterance_end_ms=1000`,
+          `wss://api.deepgram.com/v1/listen?language=${language}&model=nova-2&punctuate=true&interim_results=true&endpointing=2500&utterance_end_ms=3000&vad_events=true`,
           ['token', apiKey]
         )
         socketRef.current = socket
