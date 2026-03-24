@@ -87,46 +87,20 @@ export default function LiveCall() {
     }
   }, [transcripts, interimText])
 
-  // ── Parse AI response ──
-  const parseResponse = useCallback((text: string) => {
-    if (text.startsWith("СКРИПТ:")) {
-      const content = text.replace("СКРИПТ:", "").trim()
-      setSuggestionMode("script")
-      setObjectionType("")
-      // Auto-advance to next stage
-      setCompletedStages(prev => {
-        const next = [...prev]
-        next[currentStage] = true
-        return next
-      })
-      if (currentStage < 4) {
-        setCurrentStage(prev => prev + 1)
-      }
-      return content
-    }
-    if (text.startsWith("ВОЗРАЖЕНИЕ:")) {
-      const parts = text.replace("ВОЗРАЖЕНИЕ:", "").split("|")
-      const type = parts[0]?.trim() || ""
-      const script = parts[1]?.replace(/Скажи:\s*/i, "").trim() || ""
-      setSuggestionMode("objection")
-      setObjectionType(type)
-      return script
-    }
-    // Free mode fallback
-    setSuggestionMode("free")
-    setObjectionType("")
-    return text
-  }, [currentStage])
-
-  // ── Fetch suggestion ──
+  // ── Fetch suggestion (Streaming) ──
   const fetchSuggestion = useCallback(async (text: string) => {
     try {
+      if (suggestion) {
+        setPreviousSuggestions(prev => [suggestion, ...prev].slice(0, 3))
+      }
+      setSuggestion("") // clear previous
+
       const res = await fetch(`/api/get-suggestion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           call_id: id,
-          transcript: text,
+          last_transcript: text,
           language,
           user_id: user?.id,
           current_stage: currentStage,
@@ -149,21 +123,47 @@ export default function LiveCall() {
         return
       }
 
-      const data = await res.json()
+      const reader = res.body?.getReader()
+      if (!reader) return
+      const decoder = new TextDecoder()
+      let fullSuggestion = ""
+      let advancedStage = false
 
-      if (data.error) {
-        setSuggestion(`Backend Error: ${data.error}`)
-        setSuggestionMode("free")
-        return
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        const chunk = decoder.decode(value, { stream: true })
+        fullSuggestion += chunk
+        
+        // Parse and display LIVE
+        let displayContent = fullSuggestion
+        if (displayContent.startsWith("СКРИПТ:")) {
+          displayContent = displayContent.replace("СКРИПТ:", "").trim()
+          setSuggestionMode("script")
+          setObjectionType("")
+          if (!advancedStage) {
+            advancedStage = true
+            setCompletedStages(prev => {
+              const next = [...prev]
+              next[currentStage] = true
+              return next
+            })
+            if (currentStage < 4) setCurrentStage(prev => prev + 1)
+          }
+        } else if (displayContent.startsWith("ВОЗРАЖЕНИЕ:")) {
+          const parts = displayContent.replace("ВОЗРАЖЕНИЕ:", "").split("|")
+          const type = parts[0]?.trim() || ""
+          displayContent = parts[1]?.replace(/Скажи:\s*/i, "").trim() || parts[1] || ""
+          setSuggestionMode("objection")
+          setObjectionType(type)
+        } else {
+          setSuggestionMode("free")
+          setObjectionType("")
+        }
+        
+        setSuggestion(displayContent)
       }
-
-      if (suggestion) {
-        setPreviousSuggestions(prev => [suggestion, ...prev].slice(0, 3))
-      }
-
-      const rawSuggestion = data.suggestion || ""
-      const parsed = parseResponse(rawSuggestion)
-      setSuggestion(parsed)
     } catch (err: any) {
       setSuggestion(`Network Error: ${err.message}`)
       setSuggestionMode("free")
@@ -171,7 +171,7 @@ export default function LiveCall() {
     } finally {
       setIsAnalyzing(false)
     }
-  }, [id, suggestion, language, user?.id, currentStage, hasScript, parseResponse])
+  }, [id, suggestion, language, user?.id, currentStage, hasScript])
 
   // Keep a ref to fetchSuggestion so handleFlush can call it without circular deps
   const fetchSuggestionRef = useRef(fetchSuggestion)

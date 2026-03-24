@@ -8,8 +8,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from database import supabase
+from fastapi.responses import StreamingResponse
 from models import StartCallRequest, TranscriptRequest, SuggestionRequest, EndCallRequest
-from llm import generate_suggestion, generate_script_suggestion, generate_summary
+from llm import generate_suggestion, generate_script_suggestion, generate_summary, groq_client
 
 app = FastAPI(title="Tyndap API")
 
@@ -54,37 +55,63 @@ async def add_transcript(req: TranscriptRequest):
 @app.post("/api/get-suggestion")
 async def get_suggestion(req: SuggestionRequest):
     try:
-        # Load user profile if user_id is provided
-        profile = None
+        if not groq_client: return {"error": "Groq API key not set."}
+
+        # Fetch user profile for context
+        profile_data = {}
         if supabase and req.user_id:
             profile_res = supabase.table("profiles").select("*").eq("user_id", req.user_id).single().execute()
             if profile_res.data:
-                profile = profile_res.data
+                profile_data = profile_res.data
 
-        if not supabase:
-            # Mock logic if no DB
-            if req.has_script and profile and profile.get("sales_script"):
-                suggestion = generate_script_suggestion([req.transcript], req.language, profile, req.current_stage)
-            else:
-                suggestion = generate_suggestion([req.transcript], req.language, profile)
-            return {"suggestion": suggestion}
-        
-        # Get last 10 lines
-        res = supabase.table("transcripts").select("text").eq("call_id", req.call_id).order("timestamp", desc=True).limit(10).execute()
-        lines = [r["text"] for r in reversed(res.data)] if res.data else [req.transcript]
-        
-        # Choose between script mode and free mode
-        if req.has_script and profile and profile.get("sales_script"):
-            suggestion = generate_script_suggestion(lines, req.language, profile, req.current_stage)
-        else:
-            suggestion = generate_suggestion(lines, req.language, profile)
-        
-        supabase.table("suggestions").insert({
-            "call_id": req.call_id,
-            "suggestion": suggestion
-        }).execute()
-        
-        return {"suggestion": suggestion}
+        prompt = f"""
+Продукт: {profile_data.get('product_name', '')}
+Описание: {profile_data.get('product_description', '')}
+Скрипт: {profile_data.get('sales_script', '')}
+Конкуренты: {profile_data.get('competitors', '')}
+Текущий этап: {req.current_stage}
+
+Клиент сказал:
+{req.last_transcript}
+
+ВАЖНО: Отвечай на том же языке что и клиент.
+Если клиент говорит по-английски — отвечай по-английски.
+Если по-русски — отвечай по-русски.
+
+Определи — это возражение или обычный разговор?
+
+Если возражение:
+ВОЗРАЖЕНИЕ:[тип] | Скажи: [ответ на возражение]
+
+Если по скрипту:
+СКРИПТ: Скажи: [следующая фраза из скрипта]
+
+Максимум 2 предложения. Только скрипт.
+"""
+        response = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=80,
+            temperature=0.3,
+            stream=True
+        )
+
+        def generate():
+            full_suggestion = ""
+            for chunk in response:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    full_suggestion += delta
+                    yield delta
+            
+            # Optionally save to DB after streaming finishes
+            if supabase:
+                supabase.table("suggestions").insert({
+                    "call_id": req.call_id,
+                    "suggestion": full_suggestion
+                }).execute()
+
+        return StreamingResponse(generate(), media_type="text/plain")
     except Exception as e:
         import traceback
         return {"error": str(e), "traceback": traceback.format_exc()}

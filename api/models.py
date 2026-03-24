@@ -12,7 +12,7 @@ class TranscriptRequest(BaseModel):
 
 class SuggestionRequest(BaseModel):
     call_id: str
-    transcript: str
+    last_transcript: str
     language: str = "ru"
     user_id: str | None = None
     current_stage: int = 0
