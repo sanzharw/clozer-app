@@ -9,34 +9,55 @@ export type TranscriptLine = {
   timestamp: number
 }
 
-const MERGE_DELAY = 1500 // 1.5 seconds merge window
-
-export function useDeepgram(stream: MediaStream | null, language: string = 'ru') {
+export function useDeepgram(
+  stream: MediaStream | null,
+  language: string = 'ru',
+  onFlush?: (fullSentence: string) => void
+) {
   const [transcripts, setTranscripts] = useState<TranscriptLine[]>([])
   const [interimText, setInterimText] = useState<string>("")
   const [socketStatus, setSocketStatus] = useState<string>("disconnected")
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
-  
-  // Accumulation refs
-  const accumulatedTextRef = useRef<string>("")
-  const mergeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const finalize = useCallback(() => {
-    const text = accumulatedTextRef.current.trim()
-    if (text.length > 5) {
+  // Buffer-based accumulation
+  const bufferRef = useRef<string[]>([])
+  const utteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onFlushRef = useRef(onFlush)
+
+  // Keep onFlush ref up to date without re-triggering effect
+  useEffect(() => {
+    onFlushRef.current = onFlush
+  }, [onFlush])
+
+  const flushBuffer = useCallback(() => {
+    if (bufferRef.current.length === 0) return
+
+    const fullSentence = bufferRef.current.join(' ').trim()
+
+    if (fullSentence.length > 3) {
+      // Add as one complete transcript line
       setTranscripts((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           speaker: "Customer:",
-          text,
+          text: fullSentence,
           isFinal: true,
           timestamp: Date.now()
         }
       ])
-      accumulatedTextRef.current = ""
-      setInterimText("")
+
+      // Trigger suggestion with the full combined sentence
+      onFlushRef.current?.(fullSentence)
+    }
+
+    // Reset everything
+    bufferRef.current = []
+    setInterimText("")
+    if (utteranceTimerRef.current) {
+      clearTimeout(utteranceTimerRef.current)
+      utteranceTimerRef.current = null
     }
   }, [])
 
@@ -57,7 +78,7 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
     const setupConnection = () => {
       try {
         const socket = new WebSocket(
-          `wss://api.deepgram.com/v1/listen?language=${language}&model=nova-2&punctuate=true&interim_results=true&endpointing=1500&utterance_end_ms=1500&vad_events=true`,
+          `wss://api.deepgram.com/v1/listen?language=${language}&model=nova-2&punctuate=true&smart_format=true&interim_results=true&utterance_end_ms=2000&vad_events=true`,
           ['token', apiKey]
         )
         socketRef.current = socket
@@ -65,7 +86,7 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
         socket.onopen = () => {
           setSocketStatus("connected")
           console.log("Deepgram socket connected")
-          
+
           try {
             let mimeType;
             if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
@@ -95,42 +116,32 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
         socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data)
+
+            // Handle UtteranceEnd — customer definitely stopped talking
+            if (data.type === 'UtteranceEnd') {
+              console.log("UtteranceEnd received — flushing buffer")
+              flushBuffer()
+              return
+            }
+
             const transcript = data.channel?.alternatives?.[0]?.transcript
+            if (!transcript || transcript.trim() === '') return
+
             const isFinal = data.is_final
-            const speechFinal = data.speech_final
 
-            if (transcript && transcript.trim() !== '') {
-              if (isFinal) {
-                // Accumulate final text
-                accumulatedTextRef.current += (accumulatedTextRef.current ? " " : "") + transcript
+            if (isFinal) {
+              // Add to buffer — DO NOT show as a transcript line yet
+              bufferRef.current.push(transcript.trim())
 
-                // Reset merge timer
-                if (mergeTimerRef.current) clearTimeout(mergeTimerRef.current)
+              // Show combined buffer as grey interim text
+              setInterimText(bufferRef.current.join(' '))
 
-                // Smart trigger: if text ends with punctuation, finalize immediately
-                if (accumulatedTextRef.current.match(/[.?!।…]$/)) {
-                  finalize()
-                } else if (speechFinal) {
-                  // Speech final but no punctuation — short delay then finalize
-                  mergeTimerRef.current = setTimeout(() => {
-                    finalize()
-                  }, MERGE_DELAY)
-                } else {
-                  // Not speech final, wait for more
-                  mergeTimerRef.current = setTimeout(() => {
-                    finalize()
-                  }, MERGE_DELAY)
-                }
-
-                // Show accumulated text as interim while waiting
-                setInterimText(accumulatedTextRef.current)
-              } else {
-                // Interim result — show as preview
-                const preview = accumulatedTextRef.current
-                  ? accumulatedTextRef.current + " " + transcript
-                  : transcript
-                setInterimText(preview)
-              }
+              // Reset utterance timer (safety flush after 2s of silence)
+              if (utteranceTimerRef.current) clearTimeout(utteranceTimerRef.current)
+              utteranceTimerRef.current = setTimeout(flushBuffer, 2000)
+            } else {
+              // Show interim + buffer as grey preview text
+              setInterimText([...bufferRef.current, transcript].join(' '))
             }
           } catch (e) {
             console.error("Error parsing Deepgram message:", e)
@@ -145,10 +156,8 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
         socket.onclose = () => {
           console.log("Deepgram connection closed")
           setSocketStatus("disconnected")
-          // Finalize any remaining accumulated text
-          if (accumulatedTextRef.current.trim().length > 5) {
-            finalize()
-          }
+          // Flush any remaining buffered text
+          flushBuffer()
         }
       } catch (err) {
         console.error("Failed to setup socket", err)
@@ -159,11 +168,9 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
     setupConnection()
 
     return () => {
-      if (mergeTimerRef.current) clearTimeout(mergeTimerRef.current)
-      // Finalize remaining text before cleanup
-      if (accumulatedTextRef.current.trim().length > 5) {
-        finalize()
-      }
+      if (utteranceTimerRef.current) clearTimeout(utteranceTimerRef.current)
+      // Flush remaining text before cleanup
+      flushBuffer()
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop()
       }
@@ -171,7 +178,7 @@ export function useDeepgram(stream: MediaStream | null, language: string = 'ru')
         socketRef.current.close()
       }
     }
-  }, [stream, language, finalize])
+  }, [stream, language, flushBuffer])
 
   return { transcripts, setTranscripts, interimText, socketStatus }
 }

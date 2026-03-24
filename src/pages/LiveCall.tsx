@@ -32,7 +32,21 @@ export default function LiveCall() {
     audioDevices, selectedDeviceId, setSelectedDeviceId,
     selectedDeviceLabel, isBlackHole
   } = useAudioCapture()
-  const { transcripts, interimText, socketStatus } = useDeepgram(stream, language)
+  // ── onFlush callback: fires once per complete utterance ──
+  const handleFlush = useCallback((fullSentence: string) => {
+    // Save transcript line to Supabase
+    fetch(`/api/add-transcript`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ call_id: id, speaker: "Customer:", text: fullSentence })
+    }).catch(console.error)
+
+    // Trigger AI suggestion
+    setIsAnalyzing(true)
+    fetchSuggestionRef.current?.(fullSentence)
+  }, [id])
+
+  const { transcripts, interimText, socketStatus } = useDeepgram(stream, language, handleFlush)
 
   const wordCount = transcripts.reduce((acc, t) => acc + t.text.split(/\s+/).filter(Boolean).length, 0)
 
@@ -42,8 +56,6 @@ export default function LiveCall() {
   const [objectionType, setObjectionType] = useState<string>("")
   const [previousSuggestions, setPreviousSuggestions] = useState<string[]>([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const lastSavedIndexRef = useRef<number>(-1)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Script mode ──
   const [currentStage, setCurrentStage] = useState(0)
@@ -161,35 +173,11 @@ export default function LiveCall() {
     }
   }, [id, suggestion, language, user?.id, currentStage, hasScript, parseResponse])
 
-  // ── Trigger suggestion after 1.5s of no new finalized transcripts ──
+  // Keep a ref to fetchSuggestion so handleFlush can call it without circular deps
+  const fetchSuggestionRef = useRef(fetchSuggestion)
   useEffect(() => {
-    const finalTranscripts = transcripts.filter(t => t.isFinal)
-    if (finalTranscripts.length === 0) return
-
-    let newlySaved = false
-
-    for (let i = lastSavedIndexRef.current + 1; i < finalTranscripts.length; i++) {
-      const t = finalTranscripts[i]
-      fetch(`/api/add-transcript`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ call_id: id, speaker: t.speaker, text: t.text })
-      }).catch(console.error)
-
-      lastSavedIndexRef.current = i
-      newlySaved = true
-    }
-
-    if (newlySaved) {
-      // Reset debounce — trigger suggestion after 1.5s of silence
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-
-      debounceRef.current = setTimeout(() => {
-        setIsAnalyzing(true)
-        fetchSuggestion(finalTranscripts[finalTranscripts.length - 1].text)
-      }, 1500)
-    }
-  }, [transcripts, id, fetchSuggestion])
+    fetchSuggestionRef.current = fetchSuggestion
+  }, [fetchSuggestion])
 
   // ── End call ──
   const handleEndCall = async () => {
