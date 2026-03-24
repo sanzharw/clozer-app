@@ -52,6 +52,10 @@ async def add_transcript(req: TranscriptRequest):
     }).execute()
     return {"success": True}
 
+def detect_language(text: str) -> str:
+    russian_chars = len([c for c in text if '\u0400' <= c <= '\u04ff'])
+    return 'ru' if russian_chars > 3 else 'en'
+
 @app.post("/api/get-suggestion")
 async def get_suggestion(req: SuggestionRequest):
     try:
@@ -64,6 +68,17 @@ async def get_suggestion(req: SuggestionRequest):
             if profile_res.data:
                 profile_data = profile_res.data
 
+        lang = detect_language(req.last_transcript)
+
+        if lang == 'en':
+            lang_instruction = """
+You MUST respond in English only.
+Format: Say: [exact words]"""
+        else:
+            lang_instruction = """
+Отвечай ТОЛЬКО на русском.
+Формат: Скажи: [точные слова]"""
+
         prompt = f"""
 Продукт: {profile_data.get('product_name', '')}
 Описание: {profile_data.get('product_description', '')}
@@ -74,19 +89,17 @@ async def get_suggestion(req: SuggestionRequest):
 Клиент сказал:
 {req.last_transcript}
 
-ВАЖНО: Отвечай на том же языке что и клиент.
-Если клиент говорит по-английски — отвечай по-английски.
-Если по-русски — отвечай по-русски.
+You are a sales coach. Give ONE short response.
+{lang_instruction}
 
-Определи — это возражение или обычный разговор?
-
-Если возражение:
-ВОЗРАЖЕНИЕ:[тип] | Скажи: [ответ на возражение]
-
-Если по скрипту:
-СКРИПТ: Скажи: [следующая фраза из скрипта]
-
-Максимум 2 предложения. Только скрипт.
+STRICT RULES:
+- No explanations
+- No objection labels like 'ВОЗРАЖЕНИЕ:'
+- No preamble like 'Это возражение'
+- No Russian if customer speaks English
+- No English if customer speaks Russian
+- Just Say: or Скажи: followed by the script
+- Max 2 sentences after Say:/Скажи:
 """
         response = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -98,17 +111,52 @@ async def get_suggestion(req: SuggestionRequest):
 
         def generate():
             full_suggestion = ""
+            started = False
             for chunk in response:
                 delta = chunk.choices[0].delta.content
                 if delta:
                     full_suggestion += delta
-                    yield delta
+                    if not started:
+                        if lang == 'en':
+                            if 'Say:' in full_suggestion:
+                                started = True
+                                yield 'Say:' + full_suggestion.split('Say:')[-1]
+                            elif 'say:' in full_suggestion:
+                                started = True
+                                yield 'Say:' + full_suggestion.split('say:')[-1]
+                            elif len(full_suggestion) > 50:
+                                started = True
+                                yield 'Say: ' + full_suggestion
+                        else:
+                            if 'Скажи:' in full_suggestion:
+                                started = True
+                                yield 'Скажи:' + full_suggestion.split('Скажи:')[-1]
+                            elif len(full_suggestion) > 50:
+                                started = True
+                                yield 'Скажи: ' + full_suggestion
+                    else:
+                        yield delta
+            
+            if not started and full_suggestion:
+                if lang == 'en':
+                    yield 'Say: ' + full_suggestion
+                else:
+                    yield 'Скажи: ' + full_suggestion
             
             # Optionally save to DB after streaming finishes
             if supabase:
+                final_text = full_suggestion
+                if lang == 'en':
+                    if 'Say:' in final_text: final_text = 'Say:' + final_text.split('Say:')[-1]
+                    elif 'say:' in final_text: final_text = 'Say:' + final_text.split('say:')[-1]
+                    else: final_text = 'Say: ' + final_text.strip()
+                else:
+                    if 'Скажи:' in final_text: final_text = 'Скажи:' + final_text.split('Скажи:')[-1]
+                    else: final_text = 'Скажи: ' + final_text.strip()
+
                 supabase.table("suggestions").insert({
                     "call_id": req.call_id,
-                    "suggestion": full_suggestion
+                    "suggestion": final_text.strip()
                 }).execute()
 
         return StreamingResponse(generate(), media_type="text/plain")
