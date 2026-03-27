@@ -21,8 +21,10 @@ export function useDeepgram(
   const socketRef = useRef<WebSocket | null>(null)
 
   // Buffer-based accumulation
-  const bufferRef = useRef<string[]>([])
-  const utteranceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const bufferRef = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({
+    text: '',
+    timer: null
+  })
   const onFlushRef = useRef(onFlush)
 
   // Keep onFlush ref up to date without re-triggering effect
@@ -31,34 +33,31 @@ export function useDeepgram(
   }, [onFlush])
 
   const flushBuffer = useCallback(() => {
-    if (bufferRef.current.length === 0) return
-
-    const fullSentence = bufferRef.current.join(' ').trim()
-
-    if (fullSentence.length > 3) {
-      // Add as one complete transcript line
-      setTranscripts((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          speaker: "Customer:",
-          text: fullSentence,
-          isFinal: true,
-          timestamp: Date.now()
-        }
-      ])
-
-      // Trigger suggestion with the full combined sentence
-      onFlushRef.current?.(fullSentence)
+    if (bufferRef.current.timer) {
+      clearTimeout(bufferRef.current.timer)
+      bufferRef.current.timer = null
     }
+    
+    const text = bufferRef.current.text.trim()
+    bufferRef.current.text = ''
 
-    // Reset everything
-    bufferRef.current = []
+    if (text.length < 4) return
+
+    // Add as one complete transcript line
+    setTranscripts((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        speaker: "Customer:",
+        text: text,
+        isFinal: true,
+        timestamp: Date.now()
+      }
+    ])
+
+    // Trigger suggestion with the full combined sentence
+    onFlushRef.current?.(text)
     setInterimText("")
-    if (utteranceTimerRef.current) {
-      clearTimeout(utteranceTimerRef.current)
-      utteranceTimerRef.current = null
-    }
   }, [])
 
   useEffect(() => {
@@ -78,7 +77,7 @@ export function useDeepgram(
     const setupConnection = () => {
       try {
         const socket = new WebSocket(
-          `wss://api.deepgram.com/v1/listen?language=${language}&model=nova-2&punctuate=true&smart_format=true&interim_results=true&utterance_end_ms=2000&vad_events=true`,
+          `wss://api.deepgram.com/v1/listen?language=${language}&model=nova-2&smart_format=true&interim_results=true&utterance_end_ms=1800&vad_events=true`,
           ['token', apiKey]
         )
         socketRef.current = socket
@@ -117,31 +116,35 @@ export function useDeepgram(
           try {
             const data = JSON.parse(event.data)
 
-            // Handle UtteranceEnd — customer definitely stopped talking
+            // ONLY flush on UtteranceEnd — remove ALL other triggers
             if (data.type === 'UtteranceEnd') {
-              console.log("UtteranceEnd received — flushing buffer")
               flushBuffer()
               return
             }
 
-            const transcript = data.channel?.alternatives?.[0]?.transcript
-            if (!transcript || transcript.trim() === '') return
+            const alt = data.channel?.alternatives?.[0]
+            if (!alt) return
+            
+            const transcript = alt.transcript?.trim()
+            if (!transcript) return
 
-            const isFinal = data.is_final
-
-            if (isFinal) {
-              // Add to buffer — DO NOT show as a transcript line yet
-              bufferRef.current.push(transcript.trim())
-
-              // Show combined buffer as grey interim text
-              setInterimText(bufferRef.current.join(' '))
-
-              // Reset utterance timer (safety flush after 2s of silence)
-              if (utteranceTimerRef.current) clearTimeout(utteranceTimerRef.current)
-              utteranceTimerRef.current = setTimeout(flushBuffer, 2000)
+            if (data.is_final) {
+              // Silently accumulate — never show as separate line
+              bufferRef.current.text = (bufferRef.current.text + ' ' + transcript).trim()
+              
+              // Show as grey italic interim
+              setInterimText('🎤 ' + bufferRef.current.text + '...')
+              
+              // Safety timer — flush after 2500ms no matter what
+              if (bufferRef.current.timer) {
+                clearTimeout(bufferRef.current.timer)
+              }
+              bufferRef.current.timer = setTimeout(flushBuffer, 2500)
+              
             } else {
-              // Show interim + buffer as grey preview text
-              setInterimText([...bufferRef.current, transcript].join(' '))
+              // Pure interim — show combined buffer + current
+              setInterimText('🎤 ' + 
+                (bufferRef.current.text + ' ' + transcript).trim() + '...')
             }
           } catch (e) {
             console.error("Error parsing Deepgram message:", e)
@@ -168,7 +171,7 @@ export function useDeepgram(
     setupConnection()
 
     return () => {
-      if (utteranceTimerRef.current) clearTimeout(utteranceTimerRef.current)
+      if (bufferRef.current.timer) clearTimeout(bufferRef.current.timer)
       // Flush remaining text before cleanup
       flushBuffer()
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
