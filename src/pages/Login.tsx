@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, Navigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 
@@ -83,12 +83,6 @@ export function Login() {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm">
-          <span className="text-zinc-500">Нет аккаунта? </span>
-          <Link to="/register" className="text-[#00C853] hover:underline font-medium">
-            Зарегистрироваться
-          </Link>
-        </div>
       </div>
     </div>
   )
