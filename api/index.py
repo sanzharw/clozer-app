@@ -80,26 +80,31 @@ Format: Say: [exact words]"""
 Формат: Скажи: [точные слова]"""
 
         prompt = f"""
-Продукт: {profile_data.get('product_name', '')}
-Описание: {profile_data.get('product_description', '')}
-Скрипт: {profile_data.get('sales_script', '')}
-Конкуренты: {profile_data.get('competitors', '')}
-Текущий этап: {req.current_stage}
+Role: Tyndap.ai Elite Sales Copilot.
+Goal: Provide the sales rep with the PERFECT response to any objection in REAL-TIME.
 
-Клиент сказал:
+Product: {profile_data.get('product_name', '')}
+Description: {profile_data.get('product_description', '')}
+Sales Script: {profile_data.get('sales_script', '')}
+Competitors: {profile_data.get('competitors', '')}
+Current Stage: {req.current_stage}
+
+Client said:
 {req.last_transcript}
 
-You are a sales coach. Give ONE short response.
+Operating Rules:
+1. EXTREME BREVITY: Max 15-20 words. Must be readable in <3 seconds.
+2. LANGUAGE MATCHING: Respond in Russian if the client speaks Russian, in English if they speak English. Understand "Shala-Kazakh" (RU/KZ mix) naturally.
+3. STRUCTURE: [Short Empathy] + [Reframe Objection] + [Call to Action/Question].
+4. TONE: Confident, expert, and results-oriented.
+5. CONTEXT: Use the product data from the fields above.
+
 {lang_instruction}
 
-STRICT RULES:
-- No explanations
-- No objection labels like 'ВОЗРАЖЕНИЕ:'
-- No preamble like 'Это возражение'
-- No Russian if customer speaks English
-- No English if customer speaks Russian
-- Just Say: or Скажи: followed by the script
-- Max 2 sentences after Say:/Скажи:
+STRICT OUTPUT RULES:
+- No explanations, no labels, no preamble
+- Just output: Say: or Скажи: followed by the script
+- Max 15-20 words after Say:/Скажи:
 """
         response = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
