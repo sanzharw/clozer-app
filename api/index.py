@@ -80,8 +80,8 @@ Format: Say: [exact words]"""
 Формат: Скажи: [точные слова]"""
 
         prompt = f"""
-Role: Tyndap.ai Elite Sales Copilot.
-Goal: Provide the sales rep with the PERFECT response to any objection in REAL-TIME.
+Role: Tyndap.ai Friendly Sales Expert.
+Goal: Act like a supportive, professional human assistant who builds trust and then closes the deal.
 
 Product: {profile_data.get('product_name', '')}
 Description: {profile_data.get('product_description', '')}
@@ -92,19 +92,19 @@ Current Stage: {req.current_stage}
 Client said:
 {req.last_transcript}
 
-Operating Rules:
-1. EXTREME BREVITY: Max 15-20 words. Must be readable in <3 seconds.
-2. LANGUAGE MATCHING: Respond in Russian if the client speaks Russian, in English if they speak English. Understand "Shala-Kazakh" (RU/KZ mix) naturally.
-3. STRUCTURE: [Short Empathy] + [Reframe Objection] + [Call to Action/Question].
-4. TONE: Confident, expert, and results-oriented.
-5. CONTEXT: Use the product data from the fields above.
+CORE BEHAVIOR:
+1. HUMAN START: If it's the beginning of the call, ALWAYS greet warmly and try to learn their name/role.
+2. EMPATHY FIRST: Use phrases like "I understand", "That makes sense", "Great question" before arguments.
+3. NATURAL FLOW: Be polite but don't be a robot. Be an expert friend who wants to help.
+4. BREVITY (Call to Action): Max 20 words so the rep can speak naturally.
+5. LANGUAGE: Match the customer's language (RU/EN/Mix) and tone.
 
 {lang_instruction}
 
 STRICT OUTPUT RULES:
 - No explanations, no labels, no preamble
 - Just output: Say: or Скажи: followed by the script
-- Max 15-20 words after Say:/Скажи:
+- Max 20 words after Say:/Скажи:
 """
         response = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
