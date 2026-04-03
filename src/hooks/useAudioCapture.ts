@@ -51,12 +51,59 @@ export function useAudioCapture() {
     loadDevices()
   }, [])
 
+  const selectedDeviceLabel = audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || ""
+  const isSystemAudio = selectedDeviceLabel.toLowerCase().includes("blackhole") || 
+                        selectedDeviceLabel.toLowerCase().includes("stereo mix")
+
   const setSelectedDeviceId = useCallback((deviceId: string) => {
     setSelectedDeviceIdState(deviceId)
     localStorage.setItem(STORAGE_KEY, deviceId)
   }, [])
 
+  const startSystemAudioCapture = useCallback(async () => {
+    try {
+      // getDisplayMedia requires video:true, we discard video tracks immediately
+      const displayStream = await (navigator.mediaDevices as any).getDisplayMedia({
+        video: true,
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          sampleRate: 16000
+        }
+      })
+
+      // Stop video tracks — we only need audio
+      displayStream.getVideoTracks().forEach((t: MediaStreamTrack) => t.stop())
+
+      const audioTracks = displayStream.getAudioTracks()
+      if (audioTracks.length === 0) {
+        setError(new Error("No audio track — make sure to check 'Share tab audio' in the dialog"))
+        return null
+      }
+
+      // Build a new stream with only audio
+      const audioOnlyStream = new MediaStream(audioTracks)
+      streamRef.current = audioOnlyStream
+      setStream(audioOnlyStream)
+      setError(null)
+      return audioOnlyStream
+    } catch (err) {
+      console.error("getDisplayMedia failed:", err)
+      setError(err instanceof Error ? err : new Error("Failed to capture system audio"))
+      return null
+    }
+  }, [])
+
   const startCapture = useCallback(async (deviceId?: string) => {
+    const isWindows = navigator.platform.toLowerCase().includes("win") 
+      || navigator.userAgent.toLowerCase().includes("windows")
+    
+    // On Windows without a known system audio device — use getDisplayMedia
+    if (isWindows && !isSystemAudio) {
+      return startSystemAudioCapture()
+    }
+
     const targetDeviceId = deviceId || selectedDeviceId
     if (!targetDeviceId) {
       setError(new Error("No audio device selected"))
@@ -83,7 +130,7 @@ export function useAudioCapture() {
       setError(err instanceof Error ? err : new Error("Failed to capture audio"))
       return null
     }
-  }, [selectedDeviceId])
+  }, [selectedDeviceId, isSystemAudio, startSystemAudioCapture])
 
   const stopCapture = useCallback(() => {
     if (streamRef.current) {
@@ -92,10 +139,6 @@ export function useAudioCapture() {
     }
     setStream(null)
   }, [])
-
-  const selectedDeviceLabel = audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || ""
-  const isSystemAudio = selectedDeviceLabel.toLowerCase().includes("blackhole") || 
-                        selectedDeviceLabel.toLowerCase().includes("stereo mix")
 
   return {
     stream,
@@ -107,6 +150,8 @@ export function useAudioCapture() {
     setSelectedDeviceId,
     selectedDeviceLabel,
     isSystemAudio,
-    isBlackHole: isSystemAudio
+    isBlackHole: isSystemAudio,
+    isWindows: navigator.userAgent.toLowerCase().includes("windows"),
+    startSystemAudioCapture,
   }
 }
