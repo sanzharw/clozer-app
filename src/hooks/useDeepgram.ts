@@ -19,6 +19,9 @@ export function useDeepgram(
   const [socketStatus, setSocketStatus] = useState<string>("disconnected")
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
+  const reconnectAttemptRef = useRef(0)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isStoppedRef = useRef(false)
 
   // Buffer-based accumulation
   const bufferRef = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({
@@ -62,9 +65,13 @@ export function useDeepgram(
 
   useEffect(() => {
     if (!stream) {
+      isStoppedRef.current = true
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       setSocketStatus("disconnected")
       return
     }
+
+    isStoppedRef.current = false
 
     const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY
     if (!apiKey) {
@@ -83,6 +90,7 @@ export function useDeepgram(
         socketRef.current = socket
 
         socket.onopen = () => {
+          reconnectAttemptRef.current = 0
           setSocketStatus("connected")
           console.log("Deepgram socket connected")
 
@@ -156,11 +164,26 @@ export function useDeepgram(
           setSocketStatus("error")
         }
 
-        socket.onclose = () => {
-          console.log("Deepgram connection closed")
+        socket.onclose = (event) => {
+          console.log("Deepgram connection closed", event.code, event.reason)
           setSocketStatus("disconnected")
           // Flush any remaining buffered text
           flushBuffer()
+
+          // Don't reconnect if manually stopped or auth error
+          if (event.code === 1000 || event.code === 1008 || isStoppedRef.current) return
+
+          const attempt = reconnectAttemptRef.current
+          if (attempt >= 5) {
+            console.error("Deepgram: max reconnect attempts reached")
+            setSocketStatus("error")
+            return
+          }
+
+          const delay = Math.min(1000 * 2 ** attempt, 15000) // 1s, 2s, 4s, 8s, 15s
+          console.log(`Deepgram: reconnecting in ${delay}ms (attempt ${attempt + 1})`)
+          reconnectAttemptRef.current = attempt + 1
+          reconnectTimerRef.current = setTimeout(() => setupConnection(), delay)
         }
       } catch (err) {
         console.error("Failed to setup socket", err)
@@ -171,6 +194,8 @@ export function useDeepgram(
     setupConnection()
 
     return () => {
+      isStoppedRef.current = true
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       if (bufferRef.current.timer) clearTimeout(bufferRef.current.timer)
       // Flush remaining text before cleanup
       flushBuffer()

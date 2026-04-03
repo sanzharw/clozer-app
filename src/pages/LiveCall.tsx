@@ -30,7 +30,7 @@ export default function LiveCall() {
   const {
     stream, startCapture, stopCapture, error: captureError,
     audioDevices, selectedDeviceId, setSelectedDeviceId,
-    selectedDeviceLabel, isBlackHole
+    selectedDeviceLabel, isSystemAudio
   } = useAudioCapture()
   // ── onFlush callback: fires once per complete utterance ──
   const handleFlush = useCallback((fullSentence: string) => {
@@ -205,24 +205,23 @@ export default function LiveCall() {
       {showSetupModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl flex flex-col gap-6 animate-in fade-in zoom-in duration-300">
-            <h3 className="text-2xl font-bold text-zinc-900">🔧 Настройка BlackHole для Mac</h3>
-            <ol className="flex flex-col gap-3 text-zinc-700 text-sm leading-relaxed">
-              {[
-                "Скачайте BlackHole 2ch: existentialapps.com/blackhole",
-                "Установите и перезапустите Mac",
-                "Откройте Audio MIDI Setup (Spotlight → Audio MIDI Setup)",
-                'Нажмите "+" → "Create Multi-Output Device"',
-                "Поставьте галочки: BlackHole 2ch + ваши наушники",
-                'System Settings → Sound → Output → "Multi-Output Device"',
-                'Вернитесь в Clozer → выберите "BlackHole 2ch"',
-                "Теперь Clozer слышит всё что играет на Mac!"
-              ].map((step, i) => (
-                <li key={i} className="flex gap-3 items-start">
-                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center shrink-0 text-xs font-bold">{i + 1}</div>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
+            <h3 className="text-2xl font-bold text-zinc-900">🔧 Настройка системного звука</h3>
+            <div className="text-zinc-700 text-sm leading-relaxed">
+              <p className="font-semibold mb-2">🍏 Для Mac (BlackHole):</p>
+              <ul className="list-disc pl-5 mb-4 space-y-1">
+                <li>Скачайте и установите BlackHole 2ch</li>
+                <li>В Audio MIDI Setup создайте "Multi-Output Device" (ваши наушники + BlackHole)</li>
+                <li>В настройках звука (Sound → Output) выберите "Multi-Output Device"</li>
+                <li>В Clozer выберите устройство "BlackHole 2ch"</li>
+              </ul>
+              <p className="font-semibold mb-2">🪟 Для Windows (Stereo Mix):</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Панель управления → Звук → вкладка "Запись"</li>
+                <li>Правый клик по пустому месту → "Показать отключенные устройства"</li>
+                <li>Включите "Стерео микшер" (Stereo Mix)</li>
+                <li>В Clozer выберите устройство "Stereo Mix"</li>
+              </ul>
+            </div>
             <Button onClick={() => setShowSetupModal(false)} className="w-full bg-[#00C853] hover:bg-[#00E676] text-white py-5 text-base font-semibold mt-2">
               Понятно
             </Button>
@@ -239,7 +238,7 @@ export default function LiveCall() {
               onClick={() => setShowDeviceDropdown(!showDeviceDropdown)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 hover:bg-zinc-50 transition-colors text-sm font-medium text-zinc-700"
             >
-              <span>{isBlackHole ? "🟢" : "🎤"}</span>
+              <span>{isSystemAudio ? "🟢" : "🎤"}</span>
               <span className="max-w-[200px] truncate">
                 {selectedDeviceLabel || "Выберите устройство"}
               </span>
@@ -262,7 +261,7 @@ export default function LiveCall() {
                       device.deviceId === selectedDeviceId ? "bg-green-50 text-green-700 font-medium" : "text-zinc-700"
                     }`}
                   >
-                    <span>{device.label.toLowerCase().includes("blackhole") ? "🟢" : "🎤"}</span>
+                    <span>{device.label.toLowerCase().includes("blackhole") || device.label.toLowerCase().includes("stereo mix") ? "🟢" : "🎤"}</span>
                     <span className="truncate">{device.label}</span>
                     {device.deviceId === selectedDeviceId && <span className="ml-auto text-green-600">✓</span>}
                   </button>
@@ -274,7 +273,7 @@ export default function LiveCall() {
             {stream ? (
               <span className="text-xs font-medium text-green-600 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                {isBlackHole ? "Системный звук подключён" : "Микрофон подключён"}
+                {isSystemAudio ? "Системный звук подключён" : "Микрофон подключён"}
               </span>
             ) : (
               <span className="text-xs text-zinc-400">Ready</span>

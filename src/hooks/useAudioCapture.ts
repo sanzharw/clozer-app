@@ -29,15 +29,18 @@ export function useAudioCapture() {
 
         setAudioDevices(audioInputs)
 
-        // Restore from localStorage or auto-select BlackHole
+        // Restore from localStorage or auto-select system audio
         const savedId = localStorage.getItem(STORAGE_KEY)
-        const blackhole = audioInputs.find(d => d.label.toLowerCase().includes("blackhole"))
+        const systemAudioDevice = audioInputs.find(d => {
+          const label = d.label.toLowerCase()
+          return label.includes("blackhole") || label.includes("stereo mix")
+        })
 
         if (savedId && audioInputs.some(d => d.deviceId === savedId)) {
           setSelectedDeviceIdState(savedId)
-        } else if (blackhole) {
-          setSelectedDeviceIdState(blackhole.deviceId)
-          localStorage.setItem(STORAGE_KEY, blackhole.deviceId)
+        } else if (systemAudioDevice) {
+          setSelectedDeviceIdState(systemAudioDevice.deviceId)
+          localStorage.setItem(STORAGE_KEY, systemAudioDevice.deviceId)
         } else if (audioInputs.length > 0) {
           setSelectedDeviceIdState(audioInputs[0].deviceId)
         }
@@ -91,7 +94,8 @@ export function useAudioCapture() {
   }, [])
 
   const selectedDeviceLabel = audioDevices.find(d => d.deviceId === selectedDeviceId)?.label || ""
-  const isBlackHole = selectedDeviceLabel.toLowerCase().includes("blackhole")
+  const isSystemAudio = selectedDeviceLabel.toLowerCase().includes("blackhole") || 
+                        selectedDeviceLabel.toLowerCase().includes("stereo mix")
 
   return {
     stream,
@@ -102,6 +106,7 @@ export function useAudioCapture() {
     selectedDeviceId,
     setSelectedDeviceId,
     selectedDeviceLabel,
-    isBlackHole
+    isSystemAudio,
+    isBlackHole: isSystemAudio
   }
 }
